@@ -19,30 +19,6 @@
       "dest": "/server/index.js"
     },
     {
-      "src": "/upload",
-      "dest": "/client/build/index.html"
-    },
-    {
-      "src": "/gallery",
-      "dest": "/client/build/index.html"
-    },
-    {
-      "src": "/login",
-      "dest": "/client/build/index.html"
-    },
-    {
-      "src": "/register",
-      "dest": "/client/build/index.html"
-    },
-    {
-      "src": "/admin",
-      "dest": "/client/build/index.html"
-    },
-    {
-      "src": "/qr-generator",
-      "dest": "/client/build/index.html"
-    },
-    {
       "src": "/(.*)",
       "dest": "/client/build/index.html"
     }
