@@ -33,7 +33,7 @@ const Gallery = () => {
 
   useEffect(() => {
     filterFiles();
-  }, [files, searchTerm, selectedFilter, filterFiles]);
+  }, [files, searchTerm, selectedFilter]);
 
   const fetchFiles = async () => {
     try {
