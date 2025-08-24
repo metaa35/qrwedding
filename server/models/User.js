@@ -1,203 +1,243 @@
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
-
-// JSON dosyası yolu
-const USERS_FILE = path.join(__dirname, '../data/users.json');
-
-// Data klasörünü oluştur
-const dataDir = path.dirname(USERS_FILE);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Kullanıcıları JSON dosyasından oku
-const readUsers = () => {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      const data = fs.readFileSync(USERS_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Kullanıcılar okunamadı:', error);
-  }
-  return [];
-};
-
-// Kullanıcıları JSON dosyasına yaz
-const writeUsers = (users) => {
-  try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  } catch (error) {
-    console.error('Kullanıcılar yazılamadı:', error);
-  }
-};
+const supabase = require('../services/supabase');
 
 // Kullanıcı sınıfı
 class User {
   constructor(data) {
-    this._id = data._id || Date.now().toString();
+    this.id = data.id;
     this.username = data.username;
     this.email = data.email;
-    this.password = data.password;
-    this.companyName = data.companyName;
-    this.driveFolderId = data.driveFolderId;
+    this.password_hash = data.password_hash;
+    this.company_name = data.company_name;
+    this.drive_folder_id = data.drive_folder_id;
     
     // Yetki alanları
-    this.isAdmin = data.isAdmin || false;
-    this.canCreateQR = data.canCreateQR || false;
-    this.canUploadFiles = data.canUploadFiles || false;
-    this.canAccessGallery = data.canAccessGallery || false;
+    this.is_admin = data.is_admin || false;
+    this.can_create_qr = data.can_create_qr || false;
+    this.can_upload_files = data.can_upload_files || false;
+    this.can_access_gallery = data.can_access_gallery || false;
     
     // İletişim bilgileri
     this.phone = data.phone;
     this.website = data.website;
     
     // Hesap durumu
-    this.isActive = data.isActive !== undefined ? data.isActive : true;
-    this.isVerified = data.isVerified || false;
-    this.emailVerified = data.emailVerified || false;
+    this.is_active = data.is_active !== undefined ? data.is_active : true;
+    this.is_verified = data.is_verified || false;
+    this.email_verified = data.email_verified || false;
     
     // Zaman damgaları
-    this.createdAt = data.createdAt || new Date();
-    this.lastLogin = data.lastLogin || new Date();
-    this.updatedAt = new Date();
+    this.created_at = data.created_at || new Date();
+    this.last_login = data.last_login || new Date();
+    this.updated_at = new Date();
   }
 
   // Şifre karşılaştırma
   async comparePassword(candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.password);
+    return bcrypt.compare(candidatePassword, this.password_hash);
   }
 
   // Kullanıcı bilgilerini güvenli şekilde döndürme
   toSafeObject() {
     const userObject = { ...this };
-    delete userObject.password;
+    delete userObject.password_hash;
     return userObject;
   }
 
   // Yetki kontrolü metodları
   hasPermission(permission) {
-    if (this.isAdmin) return true;
+    if (this.is_admin) return true;
     return this[permission] === true;
   }
 
   canCreateQRCode() {
-    return this.hasPermission('canCreateQR');
+    return this.hasPermission('can_create_qr');
   }
 
   hasUploadPermission() {
-    return this.hasPermission('canUploadFiles');
+    return this.hasPermission('can_upload_files');
   }
 
   hasGalleryPermission() {
-    return this.hasPermission('canAccessGallery');
+    return this.hasPermission('can_access_gallery');
   }
 
   // Kullanıcıyı kaydet
   async save() {
-    const users = readUsers();
-    const existingIndex = users.findIndex(u => u._id === this._id);
-    
-    if (existingIndex >= 0) {
-      users[existingIndex] = this;
-    } else {
-      users.push(this);
+    try {
+      const userData = {
+        username: this.username,
+        email: this.email,
+        password_hash: this.password_hash,
+        company_name: this.company_name,
+        drive_folder_id: this.drive_folder_id,
+        is_admin: this.is_admin,
+        can_create_qr: this.can_create_qr,
+        can_upload_files: this.can_upload_files,
+        can_access_gallery: this.can_access_gallery,
+        phone: this.phone,
+        website: this.website,
+        is_active: this.is_active,
+        is_verified: this.is_verified,
+        email_verified: this.email_verified,
+        last_login: this.last_login,
+        updated_at: this.updated_at
+      };
+
+      if (this.id) {
+        // Güncelleme
+        const { data, error } = await supabase
+          .from('users')
+          .update(userData)
+          .eq('id', this.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new User(data);
+      } else {
+        // Yeni kullanıcı
+        const { data, error } = await supabase
+          .from('users')
+          .insert([userData])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new User(data);
+      }
+    } catch (error) {
+      console.error('Kullanıcı kaydetme hatası:', error);
+      throw error;
     }
-    
-    writeUsers(users);
-    return this;
   }
 }
 
 // Statik metodlar
-User.find = (query = {}) => {
-  let users = readUsers();
-  
-  // Basit filtreleme
-  if (query.email) {
-    users = users.filter(u => u.email === query.email);
+User.find = async (query = {}) => {
+  try {
+    let supabaseQuery = supabase.from('users').select('*');
+    
+    // Filtreleme
+    if (query.email) {
+      supabaseQuery = supabaseQuery.eq('email', query.email);
+    }
+    if (query.username) {
+      supabaseQuery = supabaseQuery.eq('username', query.username);
+    }
+    if (query.is_active !== undefined) {
+      supabaseQuery = supabaseQuery.eq('is_active', query.is_active);
+    }
+    if (query.is_admin !== undefined) {
+      supabaseQuery = supabaseQuery.eq('is_admin', query.is_admin);
+    }
+    
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    
+    return data.map(user => new User(user));
+  } catch (error) {
+    console.error('Kullanıcı arama hatası:', error);
+    return [];
   }
-  if (query.username) {
-    users = users.filter(u => u.username === query.username);
-  }
-  if (query.isActive !== undefined) {
-    users = users.filter(u => u.isActive === query.isActive);
-  }
-  if (query.isAdmin !== undefined) {
-    users = users.filter(u => u.isAdmin === query.isAdmin);
-  }
-  if (query.canCreateQR !== undefined) {
-    users = users.filter(u => u.canCreateQR === query.canCreateQR);
-  }
-  if (query.canUploadFiles !== undefined) {
-    users = users.filter(u => u.canUploadFiles === query.canUploadFiles);
-  }
-  if (query.canAccessGallery !== undefined) {
-    users = users.filter(u => u.canAccessGallery === query.canAccessGallery);
-  }
-  if (query.createdAt && query.createdAt.$gte) {
-    users = users.filter(u => new Date(u.createdAt) >= query.createdAt.$gte);
-  }
-  
-  return users.map(u => new User(u));
 };
 
-User.findOne = (query) => {
-  const users = User.find(query);
-  return users.length > 0 ? users[0] : null;
+User.findOne = async (query) => {
+  try {
+    const users = await User.find(query);
+    return users.length > 0 ? users[0] : null;
+  } catch (error) {
+    console.error('Kullanıcı bulma hatası:', error);
+    return null;
+  }
 };
 
-User.findById = (id) => {
-  const users = readUsers();
-  const user = users.find(u => u._id === id);
-  return user ? new User(user) : null;
+User.findById = async (id) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data ? new User(data) : null;
+  } catch (error) {
+    console.error('Kullanıcı ID ile bulma hatası:', error);
+    return null;
+  }
 };
 
 User.findByIdAndDelete = async (id) => {
-  const users = readUsers();
-  const userIndex = users.findIndex(u => u._id === id);
-  
-  if (userIndex >= 0) {
-    const deletedUser = users[userIndex];
-    users.splice(userIndex, 1);
-    writeUsers(users);
-    return new User(deletedUser);
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data ? new User(data) : null;
+  } catch (error) {
+    console.error('Kullanıcı silme hatası:', error);
+    return null;
   }
-  
-  return null;
 };
 
-User.countDocuments = (query = {}) => {
-  return User.find(query).length;
+User.countDocuments = async (query = {}) => {
+  try {
+    const users = await User.find(query);
+    return users.length;
+  } catch (error) {
+    console.error('Kullanıcı sayma hatası:', error);
+    return 0;
+  }
 };
 
 User.updateMany = async (filter, update) => {
-  const users = readUsers();
-  let modifiedCount = 0;
-  
-  users.forEach((user, index) => {
-    if (filter._id && filter._id.$in && filter._id.$in.includes(user._id)) {
-      Object.assign(users[index], update.$set);
-      modifiedCount++;
+  try {
+    let supabaseQuery = supabase.from('users').update(update.$set);
+    
+    if (filter._id && filter._id.$in) {
+      supabaseQuery = supabaseQuery.in('id', filter._id.$in);
     }
-  });
-  
-  writeUsers(users);
-  return { modifiedCount };
+    
+    const { data, error } = await supabaseQuery.select();
+    if (error) throw error;
+    
+    return { modifiedCount: data.length };
+  } catch (error) {
+    console.error('Toplu güncelleme hatası:', error);
+    return { modifiedCount: 0 };
+  }
 };
 
 // Yeni kullanıcı oluşturma
 User.create = async (userData) => {
-  // Şifreyi hash'le
-  if (userData.password) {
-    const salt = await bcrypt.genSalt(10);
-    userData.password = await bcrypt.hash(userData.password, salt);
+  try {
+    // Şifreyi hash'le
+    if (userData.password) {
+      const salt = await bcrypt.genSalt(10);
+      userData.password_hash = await bcrypt.hash(userData.password, salt);
+      delete userData.password;
+    }
+    
+    // Varsayılan yetkiler (yeni kullanıcılar için)
+    userData.can_create_qr = userData.can_create_qr || false;
+    userData.can_upload_files = userData.can_upload_files || false;
+    userData.can_access_gallery = userData.can_access_gallery || false;
+    userData.is_admin = userData.is_admin || false;
+    userData.is_active = userData.is_active !== undefined ? userData.is_active : true;
+    userData.is_verified = userData.is_verified || false;
+    userData.email_verified = userData.email_verified || false;
+    
+    const user = new User(userData);
+    return await user.save();
+  } catch (error) {
+    console.error('Kullanıcı oluşturma hatası:', error);
+    throw error;
   }
-  
-  const user = new User(userData);
-  await user.save();
-  return user;
 };
 
 module.exports = User;

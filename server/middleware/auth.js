@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 // JWT token oluşturma
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 // Token doğrulama middleware
@@ -20,9 +20,9 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(decoded.userId);
 
-    if (!user || !user.isActive) {
+    if (!user || !user.is_active) {
       return res.status(401).json({
         success: false,
         message: 'Geçersiz token!'
@@ -33,6 +33,15 @@ const authenticateToken = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Token doğrulama hatası:', error);
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token süresi dolmuş! Lütfen tekrar giriş yapın.',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+    
     return res.status(401).json({
       success: false,
       message: 'Geçersiz token!'
@@ -42,7 +51,7 @@ const authenticateToken = async (req, res, next) => {
 
 // Admin kontrolü
 const requireAdmin = (req, res, next) => {
-  if (!req.user.isAdmin) {
+  if (!req.user.is_admin) {
     return res.status(403).json({
       success: false,
       message: 'Admin yetkisi gerekli!'

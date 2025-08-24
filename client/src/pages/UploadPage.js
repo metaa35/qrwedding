@@ -23,11 +23,12 @@ const UploadPage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [formData, setFormData] = useState({
     guestName: '',
-    eventName: searchParams.get('eventName') || 'Düğün',
+    eventName: searchParams.get('eventName') || 'Etkinlik',
     message: ''
   });
 
   const eventId = searchParams.get('eventId');
+  const qrId = searchParams.get('qr');
 
   const onDrop = useCallback((acceptedFiles) => {
     const newFiles = acceptedFiles.map(file => ({
@@ -87,6 +88,11 @@ const UploadPage = () => {
       formDataToSend.append('uploaderName', formData.guestName);
       formDataToSend.append('eventName', formData.eventName);
       formDataToSend.append('message', formData.message);
+      
+      // QR ID varsa ekle
+      if (qrId) {
+        formDataToSend.append('qrId', qrId);
+      }
 
       if (files.length === 1) {
         formDataToSend.append('file', files[0].file);
@@ -150,17 +156,17 @@ const UploadPage = () => {
           <div className="flex items-center justify-center mb-4">
             <Heart className="h-12 w-12 text-primary-600 mr-3" />
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Anılarınızı Paylaşın
+              Hatıra Köşesi
             </h1>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             {eventId ? (
               <>
                 <span className="font-semibold text-primary-600">{formData.eventName}</span> etkinliği için 
-                fotoğraf ve videolarınızı yükleyin. Anılarınız güvenle saklanacak.
+                fotoğraf ve videolarınızı yükleyin. Hatıralarınız güvenle saklanacak.
               </>
             ) : (
-              'Düğün veya nişan etkinliğiniz için fotoğraf ve videolarınızı yükleyin.'
+              'Etkinliğiniz için fotoğraf ve videolarınızı yükleyin.'
             )}
           </p>
         </motion.div>

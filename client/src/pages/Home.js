@@ -3,14 +3,12 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Heart, 
-  Camera, 
   QrCode, 
   Shield, 
   Zap, 
   Users, 
   Smartphone,
   ArrowRight,
-  Play,
   Star
 } from 'lucide-react';
 
@@ -35,6 +33,16 @@ const Home = () => {
       icon: Smartphone,
       title: 'Mobil Uyumlu',
       description: 'Tüm cihazlardan kolayca kullanılabilir, responsive tasarım.'
+    },
+    {
+      icon: Heart,
+      title: 'Özel Etkinlikler',
+      description: 'Düğün, nişan, doğum günü, mezuniyet ve diğer özel günler için tasarlandı.'
+    },
+    {
+      icon: Users,
+      title: 'Kolay Kullanım',
+      description: 'Hiçbir teknik bilgi gerekmez, herkes kolayca kullanabilir.'
     }
   ];
 
@@ -53,7 +61,7 @@ const Home = () => {
     },
     {
       name: 'Zeynep & Ali',
-      event: 'Düğün',
+      event: 'Doğum Günü',
       text: 'Çok pratik ve kullanışlı. Kesinlikle tavsiye ederiz!',
       rating: 5
     }
@@ -71,13 +79,13 @@ const Home = () => {
               transition={{ duration: 0.6 }}
             >
               <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-                Düğün <span className="text-gradient">Anılarınızı</span>
+                <span className="text-gradient">Hatıra Köşesi</span>
                 <br />
-                <span className="text-gradient">Paylaşın</span>
+                <span className="text-gradient">Anılarınızı Paylaşın</span>
               </h1>
               <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
                 QR kod ile misafirlerinizin fotoğraf ve videolarını kolayca toplayın. 
-                Google Drive güvenliği ile anılarınız her zaman güvende.
+                Etkinliklerinizin anıları her zaman güvende.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -85,10 +93,10 @@ const Home = () => {
                   QR Kod Oluştur
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
-                <Link to="/upload" className="btn-outline inline-flex items-center">
-                  <Camera className="mr-2 h-5 w-5" />
-                  Fotoğraf Yükle
-                </Link>
+                                 <Link to="/register" className="btn-outline inline-flex items-center">
+                   <Users className="mr-2 h-5 w-5" />
+                   Hesap Oluştur
+                 </Link>
               </div>
             </motion.div>
           </div>
@@ -109,12 +117,12 @@ const Home = () => {
               Neden Bizi Seçmelisiniz?
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Düğün ve nişanlarınızda misafirlerinizin anılarını kolayca toplamak için 
+              Etkinliklerinizde misafirlerinizin anılarını kolayca toplamak için 
               tasarlanmış modern ve güvenli sistem.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
@@ -142,64 +150,69 @@ const Home = () => {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Nasıl Çalışır?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              3 basit adımda misafirlerinizin anılarını toplayın
-            </p>
-          </motion.div>
+             {/* Quick Links Section */}
+       <section className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             whileInView={{ opacity: 1, y: 0 }}
+             transition={{ duration: 0.6 }}
+             viewport={{ once: true }}
+             className="text-center mb-16"
+           >
+             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+               Daha Fazla Bilgi
+             </h2>
+             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+               Sistemimiz hakkında detaylı bilgi almak için sayfalarımızı ziyaret edin
+             </p>
+           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                step: '1',
-                title: 'QR Kod Oluşturun',
-                description: 'Etkinliğiniz için özel QR kod oluşturun ve misafirlerinizle paylaşın.'
-              },
-              {
-                step: '2',
-                title: 'Misafirler Yüklesin',
-                description: 'Misafirleriniz QR kodu okutarak fotoğraf ve videolarını yüklesin.'
-              },
-              {
-                step: '3',
-                title: 'Anıları Toplayın',
-                description: 'Tüm anılar güvenli bir şekilde Google Drive\'da toplanır.'
-              }
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
-                viewport={{ once: true }}
-                className="card text-center relative"
-              >
-                <div className="w-12 h-12 bg-primary-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-                  {item.step}
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {item.title}
-                </h3>
-                <p className="text-gray-600">
-                  {item.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                           {[
+                {
+                  title: 'Nasıl Çalışır?',
+                  description: '3 basit adımda sistemimizin nasıl çalıştığını öğrenin.',
+                  href: '/how-it-works',
+                  icon: '1️⃣'
+                },
+                {
+                  title: 'Özellikler',
+                  description: 'Sistemimizin kullanıcı odaklı özelliklerini keşfedin.',
+                  href: '/features',
+                  icon: '✨'
+                },
+                                 {
+                   title: 'Fiyatlandırma',
+                   description: 'Tek QR paketi hakkında bilgi alın.',
+                   href: '/pricing',
+                   icon: '💎'
+                 }
+              ].map((item, index) => (
+               <motion.div
+                 key={index}
+                 initial={{ opacity: 0, y: 20 }}
+                 whileInView={{ opacity: 1, y: 0 }}
+                 transition={{ duration: 0.6, delay: index * 0.1 }}
+                 viewport={{ once: true }}
+                 className="card text-center hover:shadow-lg transition-all duration-300"
+               >
+                 <div className="text-4xl mb-4">{item.icon}</div>
+                 <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                   {item.title}
+                 </h3>
+                 <p className="text-gray-600 mb-6">
+                   {item.description}
+                 </p>
+                 <Link to={item.href} className="btn-primary inline-flex items-center">
+                   Detayları Gör
+                   <ArrowRight className="ml-2 h-4 w-4" />
+                 </Link>
+               </motion.div>
+             ))}
+           </div>
+         </div>
+       </section>
 
       {/* Testimonials Section */}
       <section className="py-20 bg-white">
@@ -212,10 +225,10 @@ const Home = () => {
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Mutlu Çiftler Ne Diyor?
+              Kullanıcılarımız Ne Diyor?
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Düğün ve nişanlarında sistemimizi kullanan çiftlerin deneyimleri
+              Etkinliklerinde sistemimizi kullanan kullanıcıların deneyimleri
             </p>
           </motion.div>
 

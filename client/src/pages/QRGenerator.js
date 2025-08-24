@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 import { 
   QrCode, 
   Download, 
@@ -12,8 +13,12 @@ import {
   CheckCircle
 } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const QRGenerator = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     eventName: '',
     eventDate: '',
@@ -24,6 +29,45 @@ const QRGenerator = () => {
   const [qrData, setQrData] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Yetki kontrolü
+  useEffect(() => {
+    if (!user) {
+      toast.error('QR kod oluşturmak için giriş yapmalısınız!');
+      navigate('/login');
+      return;
+    }
+    
+    if (!user.can_create_qr && !user.is_admin) {
+      toast.error('QR kod oluşturma yetkiniz yok!');
+      navigate('/');
+      return;
+    }
+  }, [user, navigate]);
+
+  // QR kod kontrolü - kullanıcının daha önce QR oluşturup oluşturmadığını kontrol et
+  useEffect(() => {
+    const checkExistingQR = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await axios.get('/api/qr/user-qr');
+        if (response.data.success && response.data.qrCode) {
+          setQrData(response.data.qrCode);
+          setFormData({
+            eventName: response.data.qrCode.event_name || '',
+            eventDate: response.data.qrCode.event_date || '',
+            customMessage: response.data.qrCode.custom_message || '',
+            url: response.data.qrCode.url || ''
+          });
+        }
+      } catch (error) {
+        console.log('Kullanıcının QR kodu yok veya hata:', error);
+      }
+    };
+
+    checkExistingQR();
+  }, [user]);
 
   const handleInputChange = (e) => {
     setFormData(prev => ({
@@ -38,6 +82,18 @@ const QRGenerator = () => {
       return;
     }
 
+    // Admin değilse QR kontrolü yap
+    if (!user.is_admin && qrData) {
+      toast.error('Zaten bir QR kodunuz var! Her kullanıcı sadece 1 QR kod oluşturabilir.');
+      return;
+    }
+
+    // Yetki kontrolü
+    if (!user.is_admin && !user.can_create_qr) {
+      toast.error('QR kod oluşturma yetkiniz yok! Admin panelinden yetki almanız gerekiyor.');
+      return;
+    }
+
     // URL oluştur
     const baseUrl = window.location.origin;
     const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
@@ -47,7 +103,9 @@ const QRGenerator = () => {
     try {
       const response = await axios.post('/api/qr/generate', {
         url: uploadUrl,
-        eventName: formData.eventName
+        eventName: formData.eventName,
+        eventDate: formData.eventDate,
+        customMessage: formData.customMessage
       });
       
       if (response.data.success) {
@@ -56,7 +114,11 @@ const QRGenerator = () => {
       }
     } catch (error) {
       console.error('QR generation error:', error);
-      toast.error('QR kod oluşturulurken hata oluştu!');
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('QR kod oluşturulurken hata oluştu!');
+      }
     } finally {
       setGenerating(false);
     }
@@ -67,7 +129,8 @@ const QRGenerator = () => {
 
     const link = document.createElement('a');
     link.href = qrData.qrCode;
-    link.download = `${formData.eventName.replace(/\s+/g, '_')}_QR.png`;
+    const eventName = formData.eventName || 'event';
+    link.download = `${eventName.replace(/\s+/g, '_')}_QR.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -94,8 +157,9 @@ const QRGenerator = () => {
 
     if (navigator.share) {
       try {
+        const eventName = formData.eventName || 'Etkinlik';
         await navigator.share({
-          title: `${formData.eventName} - QR Kod`,
+          title: `${eventName} - QR Kod`,
           text: 'Bu QR kodu okutarak fotoğraf yükleyebilirsiniz!',
           url: qrData.url
         });
@@ -139,10 +203,10 @@ const QRGenerator = () => {
               QR Kod Oluşturucu
             </h1>
           </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Etkinliğiniz için özel QR kod oluşturun. Misafirleriniz bu kodu okutarak 
-            fotoğraf ve videolarını kolayca yükleyebilir.
-          </p>
+                     <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+             Etkinliğiniz için özel QR kod oluşturun. {user?.is_admin ? 'Admin olarak sınırsız QR kod oluşturabilirsiniz.' : 'Admin panelinden yetki aldıktan sonra QR kod oluşturabilirsiniz.'} 
+             Misafirleriniz bu kodu okutarak Hatıra Köşesi'ne fotoğraf ve videolarını kolayca yükleyebilir.
+           </p>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -244,16 +308,29 @@ const QRGenerator = () => {
                 </button>
               </div>
 
-              {/* Info */}
-              <div className="mt-6 p-4 bg-green-50 rounded-lg">
-                <div className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" />
-                  <div className="text-sm text-green-800">
-                    <p className="font-medium mb-1">Nasıl Kullanılır?</p>
-                    <p>QR kodu yazdırın veya dijital olarak paylaşın. Misafirleriniz kodu okutarak fotoğraf yükleme sayfasına ulaşabilir.</p>
-                  </div>
-                </div>
-              </div>
+                             {/* Info */}
+               <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                 <div className="flex items-start">
+                   <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" />
+                   <div className="text-sm text-green-800">
+                     <p className="font-medium mb-1">Nasıl Kullanılır?</p>
+                     <p>QR kodu yazdırın veya dijital olarak paylaşın. Misafirleriniz kodu okutarak fotoğraf yükleme sayfasına ulaşabilir.</p>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Admin Info */}
+               {user?.is_admin && (
+                 <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                   <div className="flex items-start">
+                     <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                     <div className="text-sm text-blue-800">
+                       <p className="font-medium mb-1">Admin Yetkisi</p>
+                       <p>Admin olarak sınırsız QR kod oluşturabilir ve tüm sistemi yönetebilirsiniz.</p>
+                     </div>
+                   </div>
+                 </div>
+               )}
             </div>
           </motion.div>
 
@@ -283,6 +360,7 @@ const QRGenerator = () => {
                      <h4 className="font-semibold text-gray-900 mb-2">Etkinlik Bilgileri:</h4>
                      <div className="space-y-1 text-sm text-gray-600">
                        <p><strong>Ad:</strong> {qrData.eventName}</p>
+                       <p><strong>QR ID:</strong> <span className="font-mono text-xs bg-purple-100 px-2 py-1 rounded border border-purple-200">{qrData.qrId || 'qr_' + qrData.eventName + '_' + Date.now()}</span></p>
                        <p><strong>URL:</strong> {qrData.url}</p>
                      </div>
                    </div>
@@ -325,7 +403,7 @@ const QRGenerator = () => {
                   </button>
                 </div>
 
-                                 <div className="mt-6 space-y-3">
+                                                                  <div className="mt-6 space-y-3">
                    <div className="p-3 bg-blue-50 rounded-lg">
                      <p className="text-xs text-blue-800">
                        <strong>QR Kod URL:</strong><br />
@@ -336,10 +414,25 @@ const QRGenerator = () => {
                    <div className="p-3 bg-green-50 rounded-lg">
                      <p className="text-xs text-green-800">
                        <strong>Galeri URL:</strong><br />
-                       <span className="break-all">{qrData.url.replace('/upload', '/gallery')}</span>
+                       <span className="break-all">
+                         {qrData.galleryUrl || (qrData.url ? (() => {
+                           // QR URL'inden event name'i çıkar
+                           const eventName = qrData.eventName;
+                           return `${window.location.origin}/gallery?eventName=${encodeURIComponent(eventName)}`;
+                         })() : '')}
+                       </span>
                      </p>
                      <button
-                       onClick={() => window.open(qrData.url.replace('/upload', '/gallery'), '_blank')}
+                       onClick={() => {
+                         if (qrData.galleryUrl) {
+                           window.open(qrData.galleryUrl, '_blank');
+                         } else if (qrData.url) {
+                           // Galeri linkini oluştur - sadece event name kullan
+                           const eventName = qrData.eventName;
+                           const galleryUrl = `${window.location.origin}/gallery?eventName=${encodeURIComponent(eventName)}`;
+                           window.open(galleryUrl, '_blank');
+                         }
+                       }}
                        className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors"
                      >
                        Galeriyi Aç

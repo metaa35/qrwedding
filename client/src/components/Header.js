@@ -1,53 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Menu, 
   X, 
-  Upload, 
-  Image, 
   QrCode,
-  LogIn,
   User,
   LogOut,
   Shield
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // LocalStorage'dan kullanıcı bilgisini al
-    const userData = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    
-    if (userData && token) {
-      setUser(JSON.parse(userData));
-      // Axios default header'ına token'ı ekle
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
-  }, []);
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
-    setUser(null);
+    logout();
     toast.success('Çıkış yapıldı');
     navigate('/');
   };
 
   const navigation = [
     { name: 'Ana Sayfa', href: '/', icon: null },
-    { name: 'Yükle', href: '/upload', icon: Upload },
-    { name: 'Galeri', href: '/gallery', icon: Image },
+    { name: 'Nasıl Çalışır', href: '/how-it-works', icon: null },
+    { name: 'Özellikler', href: '/features', icon: null },
+    { name: 'Fiyatlandırma', href: '/pricing', icon: null },
     { name: 'QR Oluştur', href: '/qr-generator', icon: QrCode },
   ];
+
+  // Kullanıcı yetkilerine göre ek navigasyon - Sadece QR oluşturma
+  const userNavigation = [];
+  
+  // Galeri ve yükleme sayfaları sadece QR kod üzerinden erişilebilir
+  // Bu sayfalar header'da gösterilmiyor
 
   const isActive = (path) => location.pathname === path;
 
@@ -56,16 +45,37 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
-              <QrCode className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">QR Gallery</span>
+          <Link to="/" className="flex items-center space-x-3">
+            <img 
+              src="/logo.png" 
+              alt="Hatıra Köşesi Logo" 
+              className="w-10 h-10 object-contain"
+            />
+            <span className="text-xl font-bold text-gray-900">Hatıra Köşesi</span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex space-x-8">
             {navigation.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                    isActive(item.href)
+                      ? 'text-primary-600 bg-primary-50'
+                      : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {Icon && <Icon className="w-4 h-4" />}
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+            
+            {/* Kullanıcı yetkilerine göre ek navigasyon */}
+            {userNavigation.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
@@ -89,7 +99,7 @@ const Header = () => {
             {user ? (
               <div className="flex items-center space-x-4">
                 {/* Admin Panel Link */}
-                {user.isAdmin && (
+                {user.is_admin && (
                   <Link
                     to="/admin"
                     className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-md transition-all duration-200"
@@ -100,8 +110,10 @@ const Header = () => {
                 )}
                 
                 <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
+                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                    <div className="text-white font-bold text-sm">
+                      <span>H</span>
+                    </div>
                   </div>
                   <span className="text-sm font-medium text-gray-700">{user.username}</span>
                 </div>
@@ -172,12 +184,32 @@ const Header = () => {
                 );
               })}
               
+              {/* Kullanıcı yetkilerine göre ek navigasyon - Mobile */}
+              {userNavigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      isActive(item.href)
+                        ? 'text-primary-600 bg-primary-50'
+                        : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {Icon && <Icon className="w-4 h-4" />}
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+              
               {/* Mobile Auth */}
               <div className="pt-4 border-t border-gray-200">
                 {user ? (
                   <div className="space-y-2">
-                    {/* Admin Panel Link - Mobile */}
-                    {user.isAdmin && (
+                                         {/* Admin Panel Link - Mobile */}
+                     {user.is_admin && (
                       <Link
                         to="/admin"
                         onClick={() => setIsMenuOpen(false)}
@@ -189,8 +221,10 @@ const Header = () => {
                     )}
                     
                     <div className="flex items-center space-x-2 px-3 py-2">
-                      <div className="w-6 h-6 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center">
-                        <User className="w-3 h-3 text-white" />
+                      <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
+                        <div className="text-white font-bold text-xs">
+                          <span>H</span>
+                        </div>
                       </div>
                       <span className="text-sm font-medium text-gray-700">{user.username}</span>
                     </div>

@@ -15,12 +15,21 @@ const app = express();
 // Trust proxy for rate limiting
 app.set('trust proxy', 1);
 
-// Rate limiting
+// Genel rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
   max: 100, // IP başına maksimum 100 istek
   message: {
     error: 'Çok fazla istek gönderdiniz. Lütfen daha sonra tekrar deneyin.'
+  }
+});
+
+// Auth route'ları için daha sıkı rate limiting
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 dakika
+  max: 10, // IP başına maksimum 10 istek
+  message: {
+    error: 'Çok fazla auth isteği gönderdiniz. Lütfen 1 dakika bekleyin.'
   }
 });
 
@@ -55,7 +64,7 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/admin', adminRoutes);

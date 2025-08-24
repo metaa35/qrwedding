@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const { generateToken, authenticateToken } = require('../middleware/auth');
+const supabase = require('../services/supabase');
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Kullanıcı var mı kontrol et
-    const existingUser = User.findOne({ email }) || User.findOne({ username });
+    const existingUser = await User.findOne({ email }) || await User.findOne({ username });
 
     if (existingUser) {
       return res.status(400).json({
@@ -49,7 +50,7 @@ router.post('/register', async (req, res) => {
     });
 
     // Token oluştur
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
@@ -81,7 +82,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Kullanıcıyı bul
-    const user = User.findOne({ email });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -99,7 +100,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Kullanıcı aktif mi kontrol et
-    if (!user.isActive) {
+    if (!user.is_active) {
       return res.status(401).json({
         success: false,
         message: 'Hesabınız devre dışı!'
@@ -107,11 +108,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Son giriş tarihini güncelle
-    user.lastLogin = new Date();
+    user.last_login = new Date();
     await user.save();
 
     // Token oluştur
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.json({
       success: true,
@@ -158,7 +159,7 @@ router.put('/change-password', authenticateToken, async (req, res) => {
       });
     }
 
-    const user = User.findById(req.user._id);
+    const user = User.findById(req.user.id);
 
     // Mevcut şifreyi kontrol et
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
@@ -183,6 +184,74 @@ router.put('/change-password', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Şifre değiştirilemedi!'
+    });
+  }
+});
+
+// Mevcut kullanıcı bilgilerini getir
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+
+    const { password_hash, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      user: safeUser
+    });
+
+  } catch (error) {
+    console.error('Kullanıcı bilgileri alma hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kullanıcı bilgileri alınamadı!',
+      error: error.message
+    });
+  }
+});
+
+// Ödeme durumunu güncelle
+router.post('/update-payment', authenticateToken, async (req, res) => {
+  try {
+    const { has_paid, payment_amount, payment_date } = req.body;
+    const userId = req.user.id;
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update({
+        has_paid: has_paid,
+        payment_amount: payment_amount,
+        payment_date: payment_date,
+        updated_at: new Date()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const { password_hash, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      message: 'Ödeme durumu güncellendi!',
+      user: safeUser
+    });
+
+  } catch (error) {
+    console.error('Ödeme güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ödeme durumu güncellenemedi!',
+      error: error.message
     });
   }
 });

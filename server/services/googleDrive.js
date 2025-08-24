@@ -29,32 +29,33 @@ class GoogleDriveService {
     }
   }
 
-  async uploadFile(filePath, fileName, mimeType, guestName = '', eventName = '', message = '') {
+  async uploadFile(filePath, fileName, mimeType, guestName = '', eventName = '', message = '', qrId = '') {
     try {
       console.log('🚀 Dosya yükleme başlatılıyor...');
-      console.log('📝 Parametreler:', { fileName, mimeType, guestName, eventName, message });
+      console.log('📝 Parametreler:', { fileName, mimeType, guestName, eventName, message, qrId });
       
       if (!this.drive) {
         console.log('❌ Drive bağlantısı yok, yeniden başlatılıyor...');
         await this.init();
       }
 
-      // Event name'i klasör adı olarak kullan (örn: "Mustafa-Beren", "Ahmet-Ayşe")
-      console.log('📁 Klasör aranıyor/oluşturuluyor:', eventName || 'Genel');
-      let targetFolderId = await this.findOrCreateFolder(eventName || 'Genel');
+             // QR ID varsa klasör adına ekle, yoksa sadece event name kullan
+       const folderName = qrId ? `${eventName}_${qrId}` : (eventName || 'Genel');
+      console.log('📁 Klasör aranıyor/oluşturuluyor:', folderName);
+      let targetFolderId = await this.findOrCreateFolder(folderName);
       console.log('✅ Hedef klasör ID:', targetFolderId);
       
-      // Dosya adını misafir adı ile birleştir
+      // Dosya adı zaten QR ID ile geliyor, misafir adını ekle
       const displayName = guestName ? `${guestName}_${fileName}` : fileName;
       console.log('📄 Dosya adı:', displayName);
       
-             const descriptionText = `Misafir: ${guestName || 'Anonim'}\nEtkinlik: ${eventName || 'Özel Etkinlik'}\nMesaj: ${message || 'Mesaj yok'}`;
-       
-       const fileMetadata = {
-         name: `${Date.now()}_${displayName}`,
-         parents: [targetFolderId], // Event klasörüne yükle
-         description: descriptionText
-       };
+      const descriptionText = `Misafir: ${guestName || 'Anonim'}\nEtkinlik: ${eventName || 'Özel Etkinlik'}\nMesaj: ${message || 'Mesaj yok'}`;
+      
+      const fileMetadata = {
+        name: displayName, // Misafir adı + QR ID + timestamp + original name
+        parents: [targetFolderId], // Event klasörüne yükle
+        description: descriptionText
+      };
       
       console.log('📋 Dosya metadata:', fileMetadata);
       console.log('📋 RAW guestName:', JSON.stringify(guestName));
@@ -334,6 +335,30 @@ class GoogleDriveService {
       return response.data;
     } catch (error) {
       console.error('❌ Dosya içeriği getirme hatası:', error.message);
+      throw error;
+    }
+  }
+
+  async getFileStream(fileId) {
+    try {
+      if (!this.drive) {
+        throw new Error('Google Drive bağlantısı kurulmamış');
+      }
+
+      console.log('📥 Dosya stream alınıyor:', fileId);
+
+      const response = await this.drive.files.get({
+        fileId: fileId,
+        alt: 'media',
+        supportsAllDrives: true
+      }, {
+        responseType: 'stream'
+      });
+
+      console.log('✅ Dosya stream alındı');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Dosya stream getirme hatası:', error.message);
       throw error;
     }
   }

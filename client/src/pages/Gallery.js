@@ -4,10 +4,8 @@ import { toast } from 'react-toastify';
 import { 
   Heart, 
   Image, 
-  Video, 
   Download, 
   Share2, 
-  Filter,
   Search,
   Calendar,
   User,
@@ -41,9 +39,10 @@ const Gallery = () => {
     try {
       setLoading(true);
       
-      // URL'den event name'i al (örn: /gallery?event=Mustafa-Beren)
+      // URL'den QR ID ve event name'i al
       const urlParams = new URLSearchParams(window.location.search);
-      const currentEventName = urlParams.get('event');
+      const qrId = urlParams.get('qr');
+      const currentEventName = urlParams.get('eventName') || urlParams.get('event');
       
       if (!currentEventName) {
         toast.error('Event adı belirtilmedi!');
@@ -55,17 +54,20 @@ const Gallery = () => {
       
       setEventName(currentEventName);
       
-      // Sadece belirli event'in dosyalarını getir
-      const url = `/api/upload/files?eventName=${encodeURIComponent(currentEventName)}`;
+      // QR ID varsa, sadece o QR koduna ait dosyaları getir
+      // QR ID yoksa, event name'e göre getir (geriye uyumluluk)
+      const url = qrId 
+        ? `/api/upload/files?qr=${qrId}&eventName=${encodeURIComponent(currentEventName)}`
+        : `/api/upload/files?eventName=${encodeURIComponent(currentEventName)}`;
       
       const response = await axios.get(url);
       
-             if (response.data.success) {
-         // Tüm dosyaları göster (Google Drive'dan gelen)
-         setFiles(response.data.files);
-         console.log(`📁 ${currentEventName} event'i için ${response.data.files.length} dosya bulundu`);
-         console.log('📄 Gelen dosya verileri:', response.data.files);
-       }
+      if (response.data.success) {
+        // Tüm dosyaları göster (Google Drive'dan gelen)
+        setFiles(response.data.files);
+        console.log(`📁 ${eventName} event'i için ${response.data.files.length} dosya bulundu`);
+        console.log('📄 Gelen dosya verileri:', response.data.files);
+      }
     } catch (error) {
       console.error('Fetch files error:', error);
       toast.error('Dosyalar yüklenirken hata oluştu!');
@@ -80,19 +82,20 @@ const Gallery = () => {
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(file => 
-        file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        file.uploaderName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        file.eventName?.toLowerCase().includes(searchTerm.toLowerCase())
+        (file.file_name || file.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (file.uploader_name || file.uploaderName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (file.event_name || file.eventName || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Type filter
     if (selectedFilter !== 'all') {
       filtered = filtered.filter(file => {
+        const mimeType = file.mime_type || file.mimeType;
         if (selectedFilter === 'images') {
-          return file.mimeType?.startsWith('image/');
+          return mimeType?.startsWith('image/');
         } else if (selectedFilter === 'videos') {
-          return file.mimeType?.startsWith('video/');
+          return mimeType?.startsWith('video/');
         }
         return true;
       });
@@ -114,7 +117,8 @@ const Gallery = () => {
   const downloadFile = async (file) => {
     try {
       // Drive dosyaları için doğrudan Google Drive linki kullan
-      const downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
+      const fileId = file.file_id || file.id;
+      const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
       
       // Yeni sekmede aç
       window.open(downloadUrl, '_blank');
@@ -129,10 +133,11 @@ const Gallery = () => {
   const shareFile = async (file) => {
     if (navigator.share) {
       try {
+        const fileId = file.file_id || file.id;
         await navigator.share({
-          title: file.name,
-          text: `${file.uploaderName || 'Misafir'} tarafından yüklendi`,
-          url: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`
+          title: file.file_name || file.name,
+          text: `${file.uploader_name || file.uploaderName || 'Misafir'} tarafından yüklendi`,
+          url: file.web_view_link || file.webViewLink || `https://drive.google.com/file/d/${fileId}/view`
         });
       } catch (error) {
         console.log('Share cancelled');
@@ -140,7 +145,8 @@ const Gallery = () => {
     } else {
       // Fallback: copy link
       try {
-        const shareUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+        const fileId = file.file_id || file.id;
+        const shareUrl = file.web_view_link || file.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
         await navigator.clipboard.writeText(shareUrl);
         toast.success('Dosya linki kopyalandı!');
       } catch (error) {
@@ -150,8 +156,68 @@ const Gallery = () => {
   };
 
   const openInDrive = (file) => {
-    const driveUrl = `https://drive.google.com/file/d/${file.id}/view`;
+    const fileId = file.file_id || file.id;
+    const driveUrl = `https://drive.google.com/file/d/${fileId}/view`;
     window.open(driveUrl, '_blank');
+  };
+
+  const downloadAllFiles = async () => {
+    if (filteredFiles.length === 0) {
+      toast.error('İndirilecek dosya bulunamadı!');
+      return;
+    }
+
+    if (!window.confirm(`${filteredFiles.length} dosyayı ZIP formatında toplu olarak indirmek istediğinizden emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      // URL'den QR ID ve event name'i al
+      const urlParams = new URLSearchParams(window.location.search);
+      const qrId = urlParams.get('qr');
+      const currentEventName = urlParams.get('eventName') || urlParams.get('event');
+
+      // ZIP indirme URL'si oluştur
+      let downloadUrl = '/api/upload/download-all?';
+      if (qrId) {
+        downloadUrl += `qr=${encodeURIComponent(qrId)}`;
+      } else if (currentEventName) {
+        downloadUrl += `eventName=${encodeURIComponent(currentEventName)}`;
+      }
+
+      // ZIP dosyasını doğrudan indir
+      const response = await fetch(downloadUrl);
+      
+      if (!response.ok) {
+        throw new Error('ZIP dosyası indirilemedi');
+      }
+
+      // Dosya adını al
+      const contentDisposition = response.headers.get('content-disposition');
+      let fileName = 'dosyalar.zip';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) {
+          fileName = match[1];
+        }
+      }
+
+      // Blob oluştur ve indir
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('ZIP dosyası başarıyla indirildi!');
+    } catch (error) {
+      console.error('ZIP indirme hatası:', error);
+      toast.error('ZIP dosyası indirilemedi!');
+    }
   };
 
   const shareAllFiles = async () => {
@@ -176,14 +242,15 @@ const Gallery = () => {
     }
   };
 
-  const deleteFile = async (fileId) => {
+  const deleteFile = async (file) => {
     if (!window.confirm('Bu dosyayı silmek istediğinizden emin misiniz?')) {
       return;
     }
 
     try {
+      const fileId = file.file_id || file.id;
       await axios.delete(`/api/upload/files/${fileId}`);
-      setFiles(prev => prev.filter(f => f.id !== fileId));
+      setFiles(prev => prev.filter(f => (f.file_id || f.id) !== fileId));
       toast.success('Dosya silindi!');
     } catch (error) {
       console.error('Delete error:', error);
@@ -234,13 +301,15 @@ const Gallery = () => {
               <svg className="h-12 w-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
-              <h3 className="text-lg font-semibold text-red-800 mb-2">Event Adı Gerekli</h3>
-              <p className="text-red-600 mb-4">
-                Galeri sayfasını görüntülemek için URL'de event adı belirtilmelidir.
-              </p>
-              <p className="text-sm text-red-500">
-                Örnek: /gallery?event=Mustafa-Beren
-              </p>
+                             <h3 className="text-lg font-semibold text-red-800 mb-2">Event Adı Gerekli</h3>
+               <p className="text-red-600 mb-4">
+                 Galeri sayfasını görüntülemek için URL'de event adı belirtilmelidir.
+               </p>
+               <p className="text-sm text-red-500">
+                 Örnekler:<br />
+                 /gallery?eventName=Mustafa-Beren<br />
+                 /gallery?event=Mustafa-Beren
+               </p>
             </div>
           </div>
         </div>
@@ -261,7 +330,7 @@ const Gallery = () => {
           <div className="flex items-center justify-center mb-4">
             <Heart className="h-12 w-12 text-primary-600 mr-3" />
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              {eventName ? `${eventName} Anıları` : 'Anılar Galerisi'}
+              {eventName ? `${eventName} Hatıra Köşesi` : 'Hatıra Köşesi'}
             </h1>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -296,19 +365,19 @@ const Gallery = () => {
               </div>
             </div>
 
-            {/* Filter */}
-            <div className="flex gap-2">
-              <select
-                value={selectedFilter}
-                onChange={(e) => setSelectedFilter(e.target.value)}
-                className="input-field"
-              >
-                <option value="all">Tümü</option>
-                <option value="images">Sadece Resimler</option>
-                <option value="videos">Sadece Videolar</option>
-              </select>
-              
-                             <button
+                         {/* Filter */}
+             <div className="flex gap-2">
+               <select
+                 value={selectedFilter}
+                 onChange={(e) => setSelectedFilter(e.target.value)}
+                 className="input-field"
+               >
+                 <option value="all">Tümü</option>
+                 <option value="images">Sadece Resimler</option>
+                 <option value="videos">Sadece Videolar</option>
+               </select>
+               
+               <button
                  onClick={fetchFiles}
                  className="btn-outline px-4"
                  title="Yenile"
@@ -316,14 +385,24 @@ const Gallery = () => {
                  <RefreshCw className="h-5 w-5" />
                </button>
                
-               <button
-                 onClick={shareAllFiles}
-                 className="btn-primary px-4"
-                 title="Tüm Dosyaları Paylaş"
-               >
-                 <Share2 className="h-5 w-5" />
-               </button>
-            </div>
+               
+                
+                                 <button
+                   onClick={downloadAllFiles}
+                   className="btn-outline px-4"
+                   title="Tüm Dosyaları ZIP Olarak İndir"
+                 >
+                   <Download className="h-5 w-5" />
+                 </button>
+                
+                <button
+                  onClick={shareAllFiles}
+                  className="btn-primary px-4"
+                  title="Tüm Dosyaları Paylaş"
+                >
+                  <Share2 className="h-5 w-5" />
+                </button>
+             </div>
           </div>
         </motion.div>
 
@@ -363,23 +442,23 @@ const Gallery = () => {
                        className="aspect-[4/3] cursor-pointer relative"
                        onClick={() => openModal(file)}
                      >
-                                                                                              {file.mimeType?.startsWith('image/') ? (
+                                                                                                                                                {(file.mime_type || file.mimeType)?.startsWith('image/') ? (
                            <img
-                             src={`https://drive.google.com/uc?export=view&id=${file.id}`}
-                             alt={file.name}
-                             className="w-full h-full object-cover"
+                             src={file.web_view_link || `https://drive.google.com/uc?export=view&id=${file.file_id || file.id}`}
+                             alt={file.file_name || file.name}
+                             className="w-full h-full object-contain"
                              onError={(e) => {
                                // Fallback to thumbnail
-                               e.target.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`;
+                               e.target.src = `https://drive.google.com/thumbnail?id=${file.file_id || file.id}&sz=w400`;
                              }}
                            />
-                        ) : file.mimeType?.startsWith('video/') ? (
-                         <div className="w-full h-full bg-gray-100 relative">
-                                                                                                        <iframe
-                           src={`https://drive.google.com/file/d/${file.id}/preview`}
-                           className="w-full h-full"
-                           frameBorder="0"
-                           allowFullScreen
+                         ) : (file.mime_type || file.mimeType)?.startsWith('video/') ? (
+                          <div className="w-full h-full bg-gray-100 relative">
+                                                                                                                                    <iframe
+                             src={`https://drive.google.com/file/d/${file.file_id || file.id}/preview`}
+                             className="w-full h-full object-contain"
+                             frameBorder="0"
+                             allowFullScreen
                            onError={(e) => {
                              // Video yüklenemezse fallback göster
                              e.target.style.display = 'none';
@@ -417,37 +496,37 @@ const Gallery = () => {
 
                                          {/* File Info - Overlay on Image */}
                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
-                                               {/* Event Info */}
-                        {file.eventName && (
-                          <div className="flex items-center mb-1">
-                            <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mr-2">
-                              <User className="h-3 w-3 text-white" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-xs text-white">{file.eventName}</p>
-                            </div>
-                          </div>
-                        )}
-                       
-                                               {/* Uploader Name */}
-                        <div className="mb-2">
-                          <p className="text-xs text-white/90">Yükleyen: {file.uploaderName || 'Anonim'}</p>
-                        </div>
+                                                                        {/* Event Info */}
+                         {(file.event_name || file.eventName) && (
+                           <div className="flex items-center mb-1">
+                             <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mr-2">
+                               <User className="h-3 w-3 text-white" />
+                             </div>
+                             <div>
+                               <p className="font-semibold text-xs text-white">{file.event_name || file.eventName}</p>
+                             </div>
+                           </div>
+                         )}
                         
-                        {/* Message */}
-                        {file.message && (
-                          <div className="mb-2">
-                            <p className="text-xs text-white/90 italic">"{file.message}"</p>
-                          </div>
-                        )}
-                       
-                       {/* Date */}
-                       {file.createdTime && (
-                         <p className="text-xs text-white/70 mb-2 flex items-center">
-                           <Calendar className="h-3 w-3 mr-1" />
-                           {formatDate(file.createdTime)}
-                         </p>
-                       )}
+                         {/* Uploader Name */}
+                         <div className="mb-2">
+                           <p className="text-xs text-white/90">Yükleyen: {file.uploader_name || file.uploaderName || 'Anonim'}</p>
+                         </div>
+                        
+                                                 {/* Message */}
+                         {file.message && (
+                           <div className="mb-2">
+                             <p className="text-xs text-white/90 italic">"{file.message}"</p>
+                           </div>
+                         )}
+                        
+                         {/* Date */}
+                         {(file.uploaded_at || file.createdTime) && (
+                           <p className="text-xs text-white/70 mb-2 flex items-center">
+                             <Calendar className="h-3 w-3 mr-1" />
+                             {formatDate(file.uploaded_at || file.createdTime)}
+                           </p>
+                         )}
                      </div>
 
                      {/* Actions - Bottom */}
@@ -475,13 +554,13 @@ const Gallery = () => {
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                           </svg>
                         </button>
-                       <button
-                         onClick={(e) => { e.stopPropagation(); deleteFile(file.id); }}
-                         className="bg-red-500/90 backdrop-blur-sm text-white text-xs py-1 px-2 rounded-lg hover:bg-red-500 transition-colors"
-                         title="Sil"
-                       >
-                         <Trash2 className="inline h-3 w-3" />
-                       </button>
+                                               <button
+                          onClick={(e) => { e.stopPropagation(); deleteFile(file); }}
+                          className="bg-red-500/90 backdrop-blur-sm text-white text-xs py-1 px-2 rounded-lg hover:bg-red-500 transition-colors"
+                          title="Sil"
+                        >
+                          <Trash2 className="inline h-3 w-3" />
+                        </button>
                      </div>
                   </motion.div>
                 ))}
@@ -510,16 +589,16 @@ const Gallery = () => {
                                  <div className="p-6">
                    <div className="flex justify-between items-start mb-6">
                      <div>
-                       <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                         {selectedFile.name}
-                       </h3>
-                                               {selectedFile.eventName && (
+                                               <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                          {selectedFile.file_name || selectedFile.name}
+                        </h3>
+                        {(selectedFile.event_name || selectedFile.eventName) && (
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center mr-3">
                               <User className="h-5 w-5 text-white" />
                             </div>
                             <div>
-                              <p className="font-semibold text-lg text-gray-900">{selectedFile.eventName}</p>
+                              <p className="font-semibold text-lg text-gray-900">{selectedFile.event_name || selectedFile.eventName}</p>
                             </div>
                           </div>
                         )}
@@ -532,37 +611,37 @@ const Gallery = () => {
                      </button>
                    </div>
 
-                                     <div className="mb-4">
-                                                                  {selectedFile.mimeType?.startsWith('image/') ? (
-                         <img
-                           src={`https://drive.google.com/uc?export=view&id=${selectedFile.id}`}
-                           alt={selectedFile.name}
-                           className="w-full max-h-96 object-contain rounded-lg"
-                           onError={(e) => {
-                             // Fallback to thumbnail
-                             e.target.src = `https://drive.google.com/thumbnail?id=${selectedFile.id}&sz=w800`;
-                           }}
-                         />
+                                                         <div className="mb-4">
+                      {(selectedFile.mime_type || selectedFile.mimeType)?.startsWith('image/') ? (
+                        <img
+                          src={selectedFile.web_view_link || `https://drive.google.com/uc?export=view&id=${selectedFile.file_id || selectedFile.id}`}
+                          alt={selectedFile.file_name || selectedFile.name}
+                          className="w-full max-h-96 object-contain rounded-lg"
+                          onError={(e) => {
+                            // Fallback to thumbnail
+                            e.target.src = `https://drive.google.com/thumbnail?id=${selectedFile.file_id || selectedFile.id}&sz=w800`;
+                          }}
+                        />
                       ) : (
-                                                 <iframe
-                           src={`https://drive.google.com/file/d/${selectedFile.id}/preview`}
-                           className="w-full max-h-96 rounded-lg"
-                           frameBorder="0"
-                           allowFullScreen
+                        <iframe
+                          src={`https://drive.google.com/file/d/${selectedFile.file_id || selectedFile.id}/preview`}
+                          className="w-full max-h-96 object-contain rounded-lg"
+                          frameBorder="0"
+                          allowFullScreen
                         >
                           Tarayıcınız video oynatmayı desteklemiyor.
                         </iframe>
                       )}
-                   </div>
+                    </div>
 
                                                          {/* Uploader Name and Message Card */}
                     <div className="mb-6 p-4 bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl border border-primary-100">
                       <div className="flex items-start mb-3">
                         <User className="h-5 w-5 text-primary-600 mr-3 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-gray-900 mb-1">Yükleyen Kişi</p>
-                          <p className="text-gray-700">{selectedFile.uploaderName || 'Anonim'}</p>
-                        </div>
+                                                 <div>
+                           <p className="font-medium text-gray-900 mb-1">Yükleyen Kişi</p>
+                           <p className="text-gray-700">{selectedFile.uploader_name || selectedFile.uploaderName || 'Anonim'}</p>
+                         </div>
                       </div>
                       {selectedFile.message && (
                         <div className="flex items-start">
@@ -577,12 +656,12 @@ const Gallery = () => {
 
                    {/* File Details */}
                    <div className="grid grid-cols-1 gap-4 mb-6">
-                     {selectedFile.createdTime && (
-                       <div className="bg-gray-50 p-3 rounded-lg">
-                         <p className="text-xs text-gray-500 mb-1">Yüklenme Tarihi</p>
-                         <p className="text-sm font-medium text-gray-900">{formatDate(selectedFile.createdTime)}</p>
-                       </div>
-                     )}
+                                           {(selectedFile.uploaded_at || selectedFile.createdTime) && (
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Yüklenme Tarihi</p>
+                          <p className="text-sm font-medium text-gray-900">{formatDate(selectedFile.uploaded_at || selectedFile.createdTime)}</p>
+                        </div>
+                      )}
                    </div>
 
                                      <div className="flex gap-3">
@@ -593,23 +672,23 @@ const Gallery = () => {
                        <Download className="mr-2 h-5 w-5" />
                        İndir
                      </button>
-                                           <button
-                        onClick={() => shareFile(selectedFile)}
-                        className="flex-1 bg-gradient-to-r from-secondary-500 to-secondary-600 text-white py-3 px-6 rounded-lg hover:from-secondary-600 hover:to-secondary-700 transition-all duration-200 font-medium flex items-center justify-center"
-                      >
-                        <Share2 className="mr-2 h-5 w-5" />
-                        Paylaş
-                      </button>
-                      <button
-                        onClick={() => openInDrive(selectedFile)}
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium flex items-center justify-center"
-                      >
-                        <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                        Drive'da Aç
-                      </button>
-                   </div>
+                                                                  <button
+                         onClick={() => shareFile(selectedFile)}
+                         className="flex-1 bg-gradient-to-r from-secondary-500 to-secondary-600 text-white py-3 px-6 rounded-lg hover:from-secondary-600 hover:to-secondary-700 transition-all duration-200 font-medium flex items-center justify-center"
+                       >
+                         <Share2 className="mr-2 h-5 w-5" />
+                         Paylaş
+                       </button>
+                       <button
+                         onClick={() => openInDrive(selectedFile)}
+                         className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium flex items-center justify-center"
+                       >
+                         <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                         </svg>
+                         Drive'da Aç
+                       </button>
+                    </div>
                 </div>
               </motion.div>
             </motion.div>

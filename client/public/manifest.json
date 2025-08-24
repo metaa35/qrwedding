@@ -1,7 +1,12 @@
 {
-  "short_name": "QR Upload",
-  "name": "Wedding QR Upload System",
+  "short_name": "Hatıra Köşesi",
+  "name": "Hatıra Köşesi - QR Kod ile Fotoğraf Yükleme",
   "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
     {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",

@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { 
   Users, 
-  Settings, 
   Shield, 
   Upload, 
   QrCode, 
@@ -11,7 +10,6 @@ import {
   Trash2,
   Edit,
   Check,
-  X,
   BarChart3
 } from 'lucide-react';
 import axios from 'axios';
@@ -49,21 +47,11 @@ const AdminPanel = () => {
     }
   };
 
-  const updateUserPermissions = async (userId, permissions) => {
-    try {
-      const response = await axios.put(`/api/admin/users/${userId}/permissions`, permissions);
-      toast.success('Yetkiler güncellendi!');
-      fetchUsers();
-      fetchStats();
-    } catch (error) {
-      console.error('Yetki güncelleme hatası:', error);
-      toast.error('Yetkiler güncellenemedi!');
-    }
-  };
+
 
   const updateAdminStatus = async (userId, isAdmin) => {
     try {
-      const response = await axios.put(`/api/admin/users/${userId}/admin`, { isAdmin });
+      await axios.put(`/api/admin/users/${userId}/admin`, { isAdmin });
       toast.success(`Kullanıcı ${isAdmin ? 'admin' : 'normal kullanıcı'} yapıldı!`);
       fetchUsers();
       fetchStats();
@@ -72,6 +60,8 @@ const AdminPanel = () => {
       toast.error('Admin yetkisi güncellenemedi!');
     }
   };
+
+
 
   const deleteUser = async (userId) => {
     if (!window.confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) {
@@ -110,6 +100,8 @@ const AdminPanel = () => {
     }
   };
 
+
+
   const toggleUserSelection = (userId) => {
     setSelectedUsers(prev => 
       prev.includes(userId) 
@@ -119,7 +111,7 @@ const AdminPanel = () => {
   };
 
   const selectAllUsers = () => {
-    setSelectedUsers(users.map(user => user._id));
+    setSelectedUsers(users.map(user => user.id));
   };
 
   const deselectAllUsers = () => {
@@ -236,26 +228,27 @@ const AdminPanel = () => {
             
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => bulkUpdatePermissions({ canCreateQR: true })}
+                onClick={() => bulkUpdatePermissions({ can_create_qr: true })}
                 className="flex items-center px-3 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
               >
                 <QrCode className="h-4 w-4 mr-1" />
                 QR Yetkisi Ver
               </button>
               <button
-                onClick={() => bulkUpdatePermissions({ canUploadFiles: true })}
+                onClick={() => bulkUpdatePermissions({ can_upload_files: true })}
                 className="flex items-center px-3 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200"
               >
                 <Upload className="h-4 w-4 mr-1" />
                 Yükleme Yetkisi Ver
               </button>
               <button
-                onClick={() => bulkUpdatePermissions({ canAccessGallery: true })}
+                onClick={() => bulkUpdatePermissions({ can_access_gallery: true })}
                 className="flex items-center px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
               >
                 <Image className="h-4 w-4 mr-1" />
                 Galeri Yetkisi Ver
               </button>
+              
             </div>
           </motion.div>
         )}
@@ -304,6 +297,7 @@ const AdminPanel = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Yetkiler
                   </th>
+                  
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Durum
                   </th>
@@ -315,7 +309,7 @@ const AdminPanel = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {users.map((user, index) => (
                   <motion.tr
-                    key={user._id}
+                    key={user.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
@@ -324,8 +318,8 @@ const AdminPanel = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={selectedUsers.includes(user._id)}
-                        onChange={() => toggleUserSelection(user._id)}
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={() => toggleUserSelection(user.id)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
@@ -336,38 +330,39 @@ const AdminPanel = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.companyName}
+                      {user.company_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex space-x-2">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          user.canCreateQR ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          user.can_create_qr ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}>
                           <QrCode className="h-3 w-3 mr-1" />
                           QR
                         </span>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          user.canUploadFiles ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          user.can_upload_files ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}>
                           <Upload className="h-3 w-3 mr-1" />
                           Yükle
                         </span>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          user.canAccessGallery ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          user.can_access_gallery ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}>
                           <Image className="h-3 w-3 mr-1" />
                           Galeri
                         </span>
                       </div>
                     </td>
+                    
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {user.isActive ? 'Aktif' : 'Pasif'}
+                          {user.is_active ? 'Aktif' : 'Pasif'}
                         </span>
-                        {user.isAdmin && (
+                        {user.is_admin && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             Admin
                           </span>
@@ -377,19 +372,19 @@ const AdminPanel = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => setEditingUser(editingUser === user._id ? null : user._id)}
+                          onClick={() => setEditingUser(editingUser === user.id ? null : user.id)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => updateAdminStatus(user._id, !user.isAdmin)}
+                          onClick={() => updateAdminStatus(user.id, !user.is_admin)}
                           className="text-purple-600 hover:text-purple-900"
                         >
                           <Shield className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => deleteUser(user._id)}
+                          onClick={() => deleteUser(user.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <Trash2 className="h-4 w-4" />
