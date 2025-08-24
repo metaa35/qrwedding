@@ -29,13 +29,13 @@ const Gallery = () => {
 
   useEffect(() => {
     fetchFiles();
-  }, []);
+  }, [fetchFiles]);
 
   useEffect(() => {
     filterFiles();
-  }, [files, searchTerm, selectedFilter]);
+  }, [filterFiles]);
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -74,7 +74,7 @@ const Gallery = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const filterFiles = useCallback(() => {
     let filtered = files;
