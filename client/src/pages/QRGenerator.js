@@ -416,16 +416,16 @@ const QRGenerator = () => {
                    <div className="p-3 bg-green-50 rounded-lg">
                      <p className="text-xs text-green-800">
                        <strong>Galeri URL:</strong><br />
-                       <span className="break-all">
-                         {qrData.galleryUrl || (qrData.url ? (() => {
-                           // QR URL'inden event name'i çıkar
-                           const eventName = qrData.eventName;
-                           const baseUrl = process.env.NODE_ENV === 'production' 
-                             ? 'https://hatirakosesi.com' 
-                             : window.location.origin;
-                           return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
-                         })() : '')}
-                       </span>
+                                               <span className="break-all">
+                          {qrData.galleryUrl || (qrData.url ? (() => {
+                            // QR URL'inden event name'i çıkar
+                            const eventName = qrData.eventName;
+                            const baseUrl = process.env.NODE_ENV === 'production' 
+                              ? 'https://hatirakosesi.com' 
+                              : window.location.origin;
+                            return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
+                          })() : '')}
+                        </span>
                      </p>
                      <button
                        onClick={() => {
