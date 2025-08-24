@@ -63,6 +63,9 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 // Uploads klasörünü serve et
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Static dosyaları serve et (client build)
+app.use(express.static(path.join(__dirname, '../client/build')));
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -87,12 +90,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler - React Router için index.html'e yönlendir
 app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Endpoint bulunamadı',
-    path: req.originalUrl
-  });
+  res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
 
 const PORT = process.env.PORT || 5000;
