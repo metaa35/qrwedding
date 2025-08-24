@@ -94,8 +94,10 @@ const QRGenerator = () => {
       return;
     }
 
-    // URL oluştur
-    const baseUrl = window.location.origin;
+    // URL oluştur - Production'da hatirakosesi.com kullan
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://hatirakosesi.com' 
+      : window.location.origin;
     const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
 
     setGenerating(true);
@@ -418,7 +420,10 @@ const QRGenerator = () => {
                          {qrData.galleryUrl || (qrData.url ? (() => {
                            // QR URL'inden event name'i çıkar
                            const eventName = qrData.eventName;
-                           return `${window.location.origin}/gallery?eventName=${encodeURIComponent(eventName)}`;
+                           const baseUrl = process.env.NODE_ENV === 'production' 
+                             ? 'https://hatirakosesi.com' 
+                             : window.location.origin;
+                           return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                          })() : '')}
                        </span>
                      </p>
@@ -429,7 +434,10 @@ const QRGenerator = () => {
                          } else if (qrData.url) {
                            // Galeri linkini oluştur - sadece event name kullan
                            const eventName = qrData.eventName;
-                           const galleryUrl = `${window.location.origin}/gallery?eventName=${encodeURIComponent(eventName)}`;
+                           const baseUrl = process.env.NODE_ENV === 'production' 
+                             ? 'https://hatirakosesi.com' 
+                             : window.location.origin;
+                           const galleryUrl = `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                            window.open(galleryUrl, '_blank');
                          }
                        }}
