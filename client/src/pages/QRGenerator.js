@@ -94,10 +94,8 @@ const QRGenerator = () => {
       return;
     }
 
-    // URL oluştur - Production'da hatirakosesi.com kullan
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://hatirakosesi.com' 
-      : window.location.origin;
+    // URL oluştur
+    const baseUrl = window.location.origin;
     // QR ID'yi server tarafında oluştur, burada sadece eventName gönder
     const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
 
@@ -421,9 +419,7 @@ const QRGenerator = () => {
                           {qrData.galleryUrl || (qrData.url ? (() => {
                             // QR URL'inden event name'i çıkar
                             const eventName = qrData.eventName;
-                            const baseUrl = process.env.NODE_ENV === 'production' 
-                              ? 'https://www.hatirakosesi.com' 
-                              : window.location.origin;
+                                                         const baseUrl = window.location.origin;
                             return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                           })() : '')}
                         </span>
@@ -435,9 +431,7 @@ const QRGenerator = () => {
                          } else if (qrData.url) {
                                                         // Galeri linkini oluştur - sadece event name kullan
                              const eventName = qrData.eventName;
-                                                        const baseUrl = process.env.NODE_ENV === 'production' 
-                               ? 'https://hatirakosesi.com' 
-                               : window.location.origin;
+                                                                                                                 const baseUrl = window.location.origin;
                            const galleryUrl = `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                            window.open(galleryUrl, '_blank');
                          }
