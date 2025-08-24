@@ -21,7 +21,7 @@ import Payment from './pages/Payment';
 
 // Axios base URL ayarla
 axios.defaults.baseURL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? 'https://your-app.vercel.app' : 'http://localhost:5000');
+  (process.env.NODE_ENV === 'production' ? 'https://qrwedding-h9fdhcxst-metaa35s-projects.vercel.app' : 'http://localhost:5000');
 
 function App() {
   return (
