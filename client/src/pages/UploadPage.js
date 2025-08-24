@@ -11,8 +11,7 @@ import {
   Heart, 
   User, 
   MessageCircle,
-  CheckCircle,
-  AlertCircle
+  CheckCircle
 } from 'lucide-react';
 import axios from 'axios';
 

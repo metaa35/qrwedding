@@ -7,8 +7,7 @@ import {
   Lock, 
   Eye, 
   EyeOff,
-  LogIn,
-  UserPlus
+  ArrowRight
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -69,7 +68,7 @@ const Login = () => {
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
             className="mx-auto h-16 w-16 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center mb-6"
           >
-            <LogIn className="h-8 w-8 text-white" />
+            <ArrowRight className="h-8 w-8 text-white" />
           </motion.div>
           
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
@@ -155,7 +154,7 @@ const Login = () => {
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
             ) : (
               <>
-                <LogIn className="h-5 w-5 mr-2" />
+                <ArrowRight className="h-5 w-5 mr-2" />
                 Giriş Yap
               </>
             )}

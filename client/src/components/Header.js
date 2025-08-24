@@ -5,7 +5,6 @@ import {
   Menu, 
   X, 
   QrCode,
-  User,
   LogOut,
   Shield
 } from 'lucide-react';

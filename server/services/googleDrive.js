@@ -11,14 +11,30 @@ class GoogleDriveService {
 
   async init() {
     try {
-      const auth = new google.auth.GoogleAuth({
-        keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || './credentials.json',
-        scopes: [
-          'https://www.googleapis.com/auth/drive',
-          'https://www.googleapis.com/auth/drive.file',
-          'https://www.googleapis.com/auth/drive.appdata'
-        ]
-      });
+      let auth;
+      
+      // Vercel'de environment variable olarak credentials
+      if (process.env.GOOGLE_CREDENTIALS_JSON) {
+        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+        auth = new google.auth.GoogleAuth({
+          credentials: credentials,
+          scopes: [
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive.appdata'
+          ]
+        });
+      } else {
+        // Local development için dosyadan oku
+        auth = new google.auth.GoogleAuth({
+          keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || './credentials.json',
+          scopes: [
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive.appdata'
+          ]
+        });
+      }
 
       this.drive = google.drive({ version: 'v3', auth });
       console.log('✅ Google Drive bağlantısı başarılı');

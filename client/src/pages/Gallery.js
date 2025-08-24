@@ -29,11 +29,11 @@ const Gallery = () => {
 
   useEffect(() => {
     fetchFiles();
-  }, []);
+  }, [eventName]);
 
   useEffect(() => {
     filterFiles();
-  }, [files, searchTerm, selectedFilter]);
+  }, [files, searchTerm, selectedFilter, filterFiles]);
 
   const fetchFiles = async () => {
     try {
@@ -268,14 +268,6 @@ const Gallery = () => {
     });
   };
 
-  const formatFileSize = (bytes) => {
-    if (!bytes) return 'Bilinmiyor';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -454,12 +446,13 @@ const Gallery = () => {
                            />
                          ) : (file.mime_type || file.mimeType)?.startsWith('video/') ? (
                           <div className="w-full h-full bg-gray-100 relative">
-                                                                                                                                    <iframe
-                             src={`https://drive.google.com/file/d/${file.file_id || file.id}/preview`}
-                             className="w-full h-full object-contain"
-                             frameBorder="0"
-                             allowFullScreen
-                           onError={(e) => {
+                                                                                                                                                                <iframe
+                              src={`https://drive.google.com/file/d/${file.file_id || file.id}/preview`}
+                              className="w-full h-full object-contain"
+                              frameBorder="0"
+                              allowFullScreen
+                              title={file.file_name || file.name}
+                            onError={(e) => {
                              // Video yüklenemezse fallback göster
                              e.target.style.display = 'none';
                              e.target.parentElement.innerHTML = `
@@ -628,6 +621,7 @@ const Gallery = () => {
                           className="w-full max-h-96 object-contain rounded-lg"
                           frameBorder="0"
                           allowFullScreen
+                          title={selectedFile.file_name || selectedFile.name}
                         >
                           Tarayıcınız video oynatmayı desteklemiyor.
                         </iframe>

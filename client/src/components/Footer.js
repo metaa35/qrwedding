@@ -1,5 +1,15 @@
 import React from 'react';
-import { Heart, Camera, QrCode, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { 
+  Heart, 
+  Mail, 
+  Phone, 
+  MapPin,
+  Facebook,
+  Twitter,
+  Instagram
+} from 'lucide-react';
 
 const Footer = () => {
   return (
@@ -11,11 +21,11 @@ const Footer = () => {
             <div className="flex items-center space-x-2 mb-4">
               <Heart className="h-6 w-6 text-primary-600" />
               <span className="text-lg font-bold text-gradient">
-                Düğün Anıları
+                Hatıra Köşesi
               </span>
             </div>
             <p className="text-gray-600 mb-4">
-              Düğün ve nişanlarınızda misafirlerinizin anılarını kolayca paylaşmasını sağlayın. 
+              Etkinliklerinizde misafirlerinizin anılarını kolayca paylaşmasını sağlayın. 
               QR kod ile hızlı ve güvenli fotoğraf/video yükleme sistemi.
             </p>
             <div className="flex space-x-4">
@@ -24,7 +34,7 @@ const Footer = () => {
                 <span>Güvenli Yükleme</span>
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <Camera className="h-4 w-4" />
+                <Mail className="h-4 w-4" />
                 <span>Anında Paylaşım</span>
               </div>
             </div>
@@ -74,18 +84,18 @@ const Footer = () => {
         {/* Alt Bilgi */}
         <div className="border-t border-gray-200 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-600 text-sm">
-            © 2024 Düğün Anıları. Tüm hakları saklıdır.
+            © 2024 Hatıra Köşesi. Tüm hakları saklıdır.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <a href="#" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+            <button className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
               Gizlilik Politikası
-            </a>
-            <a href="#" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+            </button>
+            <button className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
               Kullanım Şartları
-            </a>
-            <a href="#" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+            </button>
+            <button className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
               KVKK
-            </a>
+            </button>
           </div>
         </div>
       </div>
