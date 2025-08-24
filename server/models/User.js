@@ -104,6 +104,9 @@ class User {
           .single();
 
         if (error) throw error;
+        
+        // Yeni oluşturulan kullanıcının id'sini ata
+        this.id = data.id;
         return new User(data);
       }
     } catch (error) {
@@ -144,8 +147,33 @@ User.find = async (query = {}) => {
 
 User.findOne = async (query) => {
   try {
-    const users = await User.find(query);
-    return users.length > 0 ? users[0] : null;
+    let supabaseQuery = supabase.from('users').select('*');
+    
+    // Tek bir kriter için direkt sorgu yap
+    if (query.email) {
+      const { data, error } = await supabaseQuery.eq('email', query.email).single();
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+      return data ? new User(data) : null;
+    }
+    
+    if (query.username) {
+      const { data, error } = await supabaseQuery.eq('username', query.username).single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data ? new User(data) : null;
+    }
+    
+    // Diğer kriterler için genel sorgu
+    if (query.is_active !== undefined) {
+      supabaseQuery = supabaseQuery.eq('is_active', query.is_active);
+    }
+    if (query.is_admin !== undefined) {
+      supabaseQuery = supabaseQuery.eq('is_admin', query.is_admin);
+    }
+    
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    
+    return data.length > 0 ? new User(data[0]) : null;
   } catch (error) {
     console.error('Kullanıcı bulma hatası:', error);
     return null;
@@ -232,8 +260,16 @@ User.create = async (userData) => {
     userData.is_verified = userData.is_verified || false;
     userData.email_verified = userData.email_verified || false;
     
-    const user = new User(userData);
-    return await user.save();
+    // Supabase'e direkt insert yap
+    const { data, error } = await supabase
+      .from('users')
+      .insert([userData])
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    return new User(data);
   } catch (error) {
     console.error('Kullanıcı oluşturma hatası:', error);
     throw error;

@@ -64,7 +64,9 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Static dosyaları serve et (client build)
-app.use(express.static(path.join(__dirname, '../client/build')));
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+}
 
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -92,13 +94,23 @@ app.use((err, req, res, next) => {
 
 // 404 handler - React Router için index.html'e yönlendir
 app.use('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  } else {
+    res.status(404).json({ error: 'Route not found' });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server ${PORT} portunda çalışıyor`);
-  console.log(`📱 Client URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);
-  console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
-}); 
+// Vercel için export
+module.exports = app;
+
+// Sadece local development için listen
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server ${PORT} portunda çalışıyor`);
+    console.log(`📱 Client URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);
+    console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+  });
+} 

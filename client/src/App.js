@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import axios from 'axios';
 
 import { AuthProvider } from './context/AuthContext';
 import Header from './components/Header';
@@ -17,6 +18,10 @@ import HowItWorks from './pages/HowItWorks';
 import Features from './pages/Features';
 import Pricing from './pages/Pricing';
 import Payment from './pages/Payment';
+
+// Axios base URL ayarla
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? 'https://your-app.vercel.app' : 'http://localhost:5000');
 
 function App() {
   return (

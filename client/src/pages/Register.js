@@ -12,6 +12,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -25,6 +26,7 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -59,12 +61,8 @@ const Register = () => {
       });
       
       if (response.data.success) {
-        // Token'ı localStorage'a kaydet
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        
-        // Axios default header'ına token'ı ekle
-        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        // Auth context ile giriş yap
+        login(response.data.user, response.data.token);
         
         toast.success('Kayıt başarılı! Hoş geldiniz!');
         navigate('/qr-generator'); // QR oluşturma sayfasına yönlendir

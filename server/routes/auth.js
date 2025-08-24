@@ -45,8 +45,8 @@ router.post('/register', async (req, res) => {
       username,
       email,
       password,
-      companyName,
-      driveFolderId
+      company_name: companyName,
+      drive_folder_id: driveFolderId
     });
 
     // Token oluştur
@@ -61,10 +61,22 @@ router.post('/register', async (req, res) => {
 
   } catch (error) {
     console.error('Kayıt hatası:', error);
+    
+    // Supabase hata mesajlarını daha anlaşılır hale getir
+    let errorMessage = 'Kayıt işlemi başarısız!';
+    
+    if (error.code === '23505') {
+      if (error.message.includes('email')) {
+        errorMessage = 'Bu email adresi zaten kullanılıyor!';
+      } else if (error.message.includes('username')) {
+        errorMessage = 'Bu kullanıcı adı zaten kullanılıyor!';
+      }
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Kayıt işlemi başarısız!',
-      error: error.message
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -159,7 +171,13 @@ router.put('/change-password', authenticateToken, async (req, res) => {
       });
     }
 
-    const user = User.findById(req.user.id);
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kullanıcı bulunamadı!'
+      });
+    }
 
     // Mevcut şifreyi kontrol et
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
@@ -184,36 +202,6 @@ router.put('/change-password', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Şifre değiştirilemedi!'
-    });
-  }
-});
-
-// Mevcut kullanıcı bilgilerini getir
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) throw error;
-
-    const { password_hash, ...safeUser } = user;
-
-    res.json({
-      success: true,
-      user: safeUser
-    });
-
-  } catch (error) {
-    console.error('Kullanıcı bilgileri alma hatası:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Kullanıcı bilgileri alınamadı!',
-      error: error.message
     });
   }
 });
