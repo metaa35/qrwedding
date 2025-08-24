@@ -91,7 +91,7 @@ const Features = () => {
                  Kullanıcı <span className="text-gradient">Özellikleri</span>
                </h1>
                <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-                 Düğün ve nişanlarınızda misafirlerinizin anılarını kolayca toplamak için 
+                 Özel günlerinizde misafirlerinizin anılarını kolayca toplamak için 
                  tasarlanmış kullanıcı dostu özellikler.
                </p>
             </motion.div>
