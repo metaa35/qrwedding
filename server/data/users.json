@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "1755981290216",
+    "username": "admin",
+    "email": "admin@qrgallery.com",
+    "password": "$2b$10$g/ONRJXUHun7ov18rCOwUuvkE3Hv69VcH/q0FYk2sGgvUH8o70UD2",
+    "companyName": "QR Gallery Admin",
+    "driveFolderId": "admin-folder",
+    "isAdmin": true,
+    "canCreateQR": true,
+    "canUploadFiles": true,
+    "canAccessGallery": true,
+    "isActive": true,
+    "isVerified": true,
+    "emailVerified": false,
+    "createdAt": "2025-08-23T20:34:50.216Z",
+    "lastLogin": "2025-08-23T20:36:09.640Z",
+    "updatedAt": "2025-08-23T20:36:09.568Z"
+  }
+]
