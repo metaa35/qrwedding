@@ -27,14 +27,6 @@ const Gallery = () => {
   const [showModal, setShowModal] = useState(false);
   const [eventName, setEventName] = useState('');
 
-  useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
-
-  useEffect(() => {
-    filterFiles();
-  }, [filterFiles]);
-
   const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
@@ -65,7 +57,7 @@ const Gallery = () => {
       if (response.data.success) {
         // Tüm dosyaları göster (Google Drive'dan gelen)
         setFiles(response.data.files);
-        console.log(`📁 ${eventName} event'i için ${response.data.files.length} dosya bulundu`);
+        console.log(`📁 ${currentEventName} event'i için ${response.data.files.length} dosya bulundu`);
         console.log('📄 Gelen dosya verileri:', response.data.files);
       }
     } catch (error) {
@@ -103,6 +95,14 @@ const Gallery = () => {
 
     setFilteredFiles(filtered);
   }, [files, searchTerm, selectedFilter]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  useEffect(() => {
+    filterFiles();
+  }, [filterFiles]);
 
   const openModal = (file) => {
     setSelectedFile(file);
