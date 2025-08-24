@@ -94,9 +94,9 @@ const QRGenerator = () => {
       return;
     }
 
-    // URL oluştur - Production'da hatirakosesi.com kullan
+    // URL oluştur - Production'da www.hatirakosesi.com kullan
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://hatirakosesi.com' 
+      ? 'https://www.hatirakosesi.com' 
       : window.location.origin;
     // QR ID'yi server tarafında oluştur, burada sadece eventName gönder
     const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
@@ -422,7 +422,7 @@ const QRGenerator = () => {
                             // QR URL'inden event name'i çıkar
                             const eventName = qrData.eventName;
                             const baseUrl = process.env.NODE_ENV === 'production' 
-                              ? 'https://hatirakosesi.com' 
+                              ? 'https://www.hatirakosesi.com' 
                               : window.location.origin;
                             return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                           })() : '')}
@@ -435,9 +435,9 @@ const QRGenerator = () => {
                          } else if (qrData.url) {
                            // Galeri linkini oluştur - sadece event name kullan
                            const eventName = qrData.eventName;
-                           const baseUrl = process.env.NODE_ENV === 'production' 
-                             ? 'https://hatirakosesi.com' 
-                             : window.location.origin;
+                                                       const baseUrl = process.env.NODE_ENV === 'production' 
+                              ? 'https://www.hatirakosesi.com' 
+                              : window.location.origin;
                            const galleryUrl = `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
                            window.open(galleryUrl, '_blank');
                          }
