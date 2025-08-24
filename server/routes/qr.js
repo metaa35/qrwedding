@@ -99,8 +99,8 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
       message: 'QR kod başarıyla oluşturuldu!',
       qrCode: qrCodeDataURL,
       qrId: qrId, // QR ID'yi response'a ekle
-      url: qrUrl,
-      galleryUrl: galleryUrl,
+      url: qrUrl, // QR ID ile birlikte tam URL
+      galleryUrl: galleryUrl, // QR ID ile birlikte galeri URL
       eventName: eventName,
       eventDate: eventDate,
       customMessage: customMessage,

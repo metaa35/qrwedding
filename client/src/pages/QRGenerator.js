@@ -98,6 +98,7 @@ const QRGenerator = () => {
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://hatirakosesi.com' 
       : window.location.origin;
+    // QR ID'yi server tarafında oluştur, burada sadece eventName gönder
     const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
 
     setGenerating(true);
