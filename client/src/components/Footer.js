@@ -66,7 +66,7 @@ const Footer = () => {
             <h3 className="font-semibold text-gray-900 mb-4">İletişim</h3>
             <ul className="space-y-2">
               <li className="text-gray-600">
-                <span className="font-medium">Email:</span> info@dugunanilari.com
+                <span className="font-medium">Email:</span> info@hatirakosesi.com
               </li>
               <li className="text-gray-600">
                 <span className="font-medium">Destek:</span> 7/24 Canlı Destek
