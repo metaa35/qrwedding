@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { 
@@ -29,7 +29,7 @@ const Gallery = () => {
 
   useEffect(() => {
     fetchFiles();
-  }, [eventName]);
+  }, []);
 
   useEffect(() => {
     filterFiles();
@@ -76,7 +76,7 @@ const Gallery = () => {
     }
   };
 
-  const filterFiles = () => {
+  const filterFiles = useCallback(() => {
     let filtered = files;
 
     // Search filter
@@ -102,7 +102,7 @@ const Gallery = () => {
     }
 
     setFilteredFiles(filtered);
-  };
+  }, [files, searchTerm, selectedFilter]);
 
   const openModal = (file) => {
     setSelectedFile(file);
