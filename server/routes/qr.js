@@ -54,7 +54,8 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
     const qrId = `qr_${eventName.replace(/\s+/g, '_')}_${Date.now()}`;
     
     // QR kod URL'i oluştur
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.BASE_URL || 
+      (process.env.NODE_ENV === 'production' ? 'https://www.hatirakosesi.com' : 'http://localhost:3000');
     const qrUrl = `${baseUrl}/upload?qr=${qrId}&eventName=${encodeURIComponent(eventName)}`;
     
     // Galeri URL'i oluştur - QR ID ile benzersiz

@@ -52,7 +52,12 @@ app.use(helmet({
 
 // CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [
+    process.env.CLIENT_URL || 'http://localhost:3000',
+    'https://www.hatirakosesi.com',
+    'https://hatirakosesi.com',
+    'https://qrwedding-h9fdhcxst-metaa35s-projects.vercel.app'
+  ],
   credentials: true
 }));
 
