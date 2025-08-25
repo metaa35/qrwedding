@@ -41,6 +41,10 @@ router.post('/single', upload.single('file'), async (req, res) => {
     });
   }
   try {
+    console.log('🔍 Upload endpoint çağrıldı');
+    console.log('🔍 Request body:', req.body);
+    console.log('🔍 Request file:', req.file ? 'Dosya var' : 'Dosya yok');
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -48,14 +52,14 @@ router.post('/single', upload.single('file'), async (req, res) => {
       });
     }
 
+    const { eventName, uploaderName, message, qrId } = req.body;
+
     if (!uploaderName || uploaderName.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Yükleyici adı gerekli!'
       });
     }
-
-    const { eventName, uploaderName, message, qrId } = req.body;
     
     console.log('📥 Upload request body:', req.body);
     console.log('📥 uploaderName:', JSON.stringify(uploaderName));
