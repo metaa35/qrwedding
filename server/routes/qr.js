@@ -28,24 +28,21 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
           code: 'PERMISSION_REQUIRED'
         });
       }
-    }
 
-    // Admin değilse QR sayısı kontrolü yap
-    if (!req.user.is_admin) {
-      const { data: existingQR, error: checkError } = await supabase
+      // Admin olmayan kullanıcılar için QR sayısı kontrolü (limit: 10)
+      const { data: existingQRs, error: checkError } = await supabase
         .from('qr_codes')
         .select('*')
-        .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId);
 
-      if (checkError && checkError.code !== 'PGRST116') {
+      if (checkError) {
         throw checkError;
       }
 
-      if (existingQR) {
+      if (existingQRs && existingQRs.length >= 10) {
         return res.status(400).json({
           success: false,
-          message: 'Zaten bir QR kodunuz var! Her kullanıcı sadece 1 QR kod oluşturabilir.'
+          message: 'QR kod oluşturma limitinize ulaştınız! Maksimum 10 QR kod oluşturabilirsiniz.'
         });
       }
     }

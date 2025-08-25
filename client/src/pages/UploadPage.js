@@ -29,6 +29,25 @@ const UploadPage = () => {
   const eventId = searchParams.get('eventId');
   const qrId = searchParams.get('qr');
 
+  // QR ID kontrolü - daha sıkı
+  React.useEffect(() => {
+    // QR ID yoksa veya boşsa ana sayfaya yönlendir
+    if (!qrId || qrId.trim() === '') {
+      console.log('❌ QR ID bulunamadı, ana sayfaya yönlendiriliyor...');
+      window.location.replace('/');
+      return;
+    }
+    
+    // QR ID formatını kontrol et (en az 10 karakter olmalı)
+    if (qrId.length < 10) {
+      console.log('❌ Geçersiz QR ID formatı, ana sayfaya yönlendiriliyor...');
+      window.location.replace('/');
+      return;
+    }
+    
+    console.log('✅ QR ID doğrulandı:', qrId);
+  }, [qrId]);
+
   const onDrop = useCallback((acceptedFiles) => {
     const newFiles = acceptedFiles.map(file => ({
       file,
@@ -79,6 +98,10 @@ const UploadPage = () => {
       return;
     }
 
+    // Form verilerini kontrol et
+    console.log('Form data:', formData);
+    console.log('Files:', files);
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -91,6 +114,12 @@ const UploadPage = () => {
       // QR ID varsa ekle
       if (qrId) {
         formDataToSend.append('qrId', qrId);
+      }
+
+      // FormData içeriğini logla
+      console.log('FormData contents:');
+      for (let [key, value] of formDataToSend.entries()) {
+        console.log(`${key}:`, value);
       }
 
       if (files.length === 1) {
@@ -127,7 +156,24 @@ const UploadPage = () => {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      const errorMessage = error.response?.data?.error || 'Dosya yüklenirken hata oluştu!';
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
+      let errorMessage = 'Dosya yüklenirken hata oluştu!';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      // Hata detaylarını console'da göster
+      if (error.response?.data?.details) {
+        console.error('Server error details:', error.response.data.details);
+      }
+      
       toast.error(errorMessage);
     } finally {
       setUploading(false);
@@ -141,6 +187,31 @@ const UploadPage = () => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  // QR ID yoksa veya geçersizse erişim engellendi sayfası göster
+  if (!qrId || qrId.trim() === '' || qrId.length < 10) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Erişim Engellendi</h2>
+          <p className="text-gray-600 mb-6">
+            Bu sayfaya sadece QR kodundan erişebilirsiniz. Geçersiz veya eksik QR kod tespit edildi.
+          </p>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+          >
+            Ana Sayfaya Dön
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -168,6 +239,11 @@ const UploadPage = () => {
               'Etkinliğiniz için fotoğraf ve videolarınızı yükleyin.'
             )}
           </p>
+          {qrId && (
+            <p className="text-lg text-gray-500 mt-2">
+              Etkinlik: <span className="font-semibold text-primary-600">{formData.eventName}</span>
+            </p>
+          )}
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -288,22 +364,6 @@ const UploadPage = () => {
                   value={formData.guestName}
                   onChange={handleInputChange}
                   placeholder="Adınızı girin"
-                  className="input-field"
-                  disabled={uploading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Heart className="inline h-4 w-4 mr-1" />
-                  Etkinlik Adı
-                </label>
-                <input
-                  type="text"
-                  name="eventName"
-                  value={formData.eventName}
-                  onChange={handleInputChange}
-                  placeholder="Etkinlik adı"
                   className="input-field"
                   disabled={uploading}
                 />

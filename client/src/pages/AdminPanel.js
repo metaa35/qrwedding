@@ -10,7 +10,8 @@ import {
   Trash2,
   Edit,
   Check,
-  BarChart3
+  BarChart3,
+  RefreshCw
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -20,6 +21,7 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [activeTab, setActiveTab] = useState('users');
 
   useEffect(() => {
     fetchUsers();
@@ -49,6 +51,8 @@ const AdminPanel = () => {
 
 
 
+
+
   const updateAdminStatus = async (userId, isAdmin) => {
     try {
       await axios.put(`/api/admin/users/${userId}/admin`, { isAdmin });
@@ -58,6 +62,18 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Admin yetkisi güncelleme hatası:', error);
       toast.error('Admin yetkisi güncellenemedi!');
+    }
+  };
+
+  const resetUserQR = async (userId) => {
+    try {
+      await axios.post(`/api/admin/users/${userId}/reset-qr`);
+      toast.success('Kullanıcının QR hakları sıfırlandı!');
+      fetchUsers();
+      fetchStats();
+    } catch (error) {
+      console.error('QR hakları sıfırlanamadı:', error);
+      toast.error('QR hakları sıfırlanamadı!');
     }
   };
 
@@ -135,9 +151,12 @@ const AdminPanel = () => {
           <p className="text-gray-600">Kullanıcı yetkilerini yönetin ve sistem istatistiklerini görün</p>
         </div>
 
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+
+        {/* Kullanıcı Listesi */}
+        <>
+          {/* Stats Cards */}
+            {stats && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -378,14 +397,23 @@ const AdminPanel = () => {
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => resetUserQR(user.id)}
+                          className="text-orange-600 hover:text-orange-900"
+                          title="QR haklarını sıfırla"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => updateAdminStatus(user.id, !user.is_admin)}
                           className="text-purple-600 hover:text-purple-900"
+                          title={user.is_admin ? "Admin yetkisini kaldır" : "Admin yap"}
                         >
                           <Shield className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => deleteUser(user.id)}
                           className="text-red-600 hover:text-red-900"
+                          title="Kullanıcıyı sil"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -397,6 +425,8 @@ const AdminPanel = () => {
             </table>
           </div>
         </div>
+          </>
+
       </div>
     </div>
   );

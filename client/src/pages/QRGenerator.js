@@ -16,7 +16,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const QRGenerator = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -32,6 +32,9 @@ const QRGenerator = () => {
 
   // Yetki kontrolü
   useEffect(() => {
+    // Loading sırasında bekle
+    if (loading) return;
+    
     if (!user) {
       toast.error('QR kod oluşturmak için giriş yapmalısınız!');
       navigate('/login');
@@ -43,12 +46,12 @@ const QRGenerator = () => {
       navigate('/');
       return;
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   // QR kod kontrolü - kullanıcının daha önce QR oluşturup oluşturmadığını kontrol et
   useEffect(() => {
     const checkExistingQR = async () => {
-      if (!user) return;
+      if (!user || loading) return;
       
       try {
         const response = await axios.get('/api/qr/user-qr');
@@ -67,7 +70,7 @@ const QRGenerator = () => {
     };
 
     checkExistingQR();
-  }, [user]);
+  }, [user, loading]);
 
   const handleInputChange = (e) => {
     setFormData(prev => ({
@@ -187,6 +190,18 @@ const QRGenerator = () => {
       customMessage: preset.message
     }));
   };
+
+  // Loading durumunda bekle
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
