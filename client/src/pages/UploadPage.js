@@ -81,6 +81,25 @@ const UploadPage = () => {
     validateQR();
   }, [qrId]);
 
+  // QR ID kontrolü - daha sıkı
+  React.useEffect(() => {
+    // QR ID yoksa veya boşsa ana sayfaya yönlendir
+    if (!qrId || qrId.trim() === '') {
+      console.log('❌ QR ID bulunamadı, ana sayfaya yönlendiriliyor...');
+      window.location.replace('/');
+      return;
+    }
+    
+    // QR ID formatını kontrol et (en az 10 karakter olmalı)
+    if (qrId.length < 10) {
+      console.log('❌ Geçersiz QR ID formatı, ana sayfaya yönlendiriliyor...');
+      window.location.replace('/');
+      return;
+    }
+    
+    console.log('✅ QR ID doğrulandı:', qrId);
+  }, [qrId]);
+
   const onDrop = useCallback((acceptedFiles) => {
     const newFiles = acceptedFiles.map(file => ({
       file,
@@ -211,6 +230,10 @@ const UploadPage = () => {
       return;
     }
 
+    // Form verilerini kontrol et
+    console.log('Form data:', formData);
+    console.log('Files:', files);
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -234,9 +257,29 @@ const UploadPage = () => {
         formDataToSend.append('file', audioBlob, 'audio.webm');
       }
 
+<<<<<<< HEAD
       // Endpoint seçimi
       let endpoint;
       let requestConfig = {
+=======
+      // FormData içeriğini logla
+      console.log('FormData contents:');
+      for (let [key, value] of formDataToSend.entries()) {
+        console.log(`${key}:`, value);
+      }
+
+      if (files.length === 1) {
+        formDataToSend.append('file', files[0].file);
+      } else {
+        files.forEach((fileObj, index) => {
+          formDataToSend.append('files', fileObj.file);
+        });
+      }
+
+      const endpoint = files.length === 1 ? '/api/upload/single' : '/api/upload/multiple';
+      
+      const response = await axios.post(endpoint, formDataToSend, {
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
         headers: {
           'Content-Type': 'multipart/form-data',
         }
@@ -285,6 +328,7 @@ const UploadPage = () => {
         toast.error(response.data.message || 'Yükleme başarısız!');
       }
     } catch (error) {
+<<<<<<< HEAD
       if (error.response?.data?.message) {
         toast.error(error.response.data.message);
       } else if (error.response?.status === 413) {
@@ -298,6 +342,28 @@ const UploadPage = () => {
       } else {
         toast.error('Dosya yüklenirken bir hata oluştu! Lütfen tekrar deneyin.');
       }
+=======
+      console.error('Upload error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
+      let errorMessage = 'Dosya yüklenirken hata oluştu!';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      // Hata detaylarını console'da göster
+      if (error.response?.data?.details) {
+        console.error('Server error details:', error.response.data.details);
+      }
+      
+      toast.error(errorMessage);
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -345,7 +411,33 @@ const UploadPage = () => {
     );
   }
 
+  // QR ID yoksa veya geçersizse erişim engellendi sayfası göster
+  if (!qrId || qrId.trim() === '' || qrId.length < 10) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Erişim Engellendi</h2>
+          <p className="text-gray-600 mb-6">
+            Bu sayfaya sadece QR kodundan erişebilirsiniz. Geçersiz veya eksik QR kod tespit edildi.
+          </p>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+          >
+            Ana Sayfaya Dön
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
+<<<<<<< HEAD
     <div className="min-h-screen relative">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#E1D4C2] via-[#BEB5A9] to-[#A78D78]"></div>
@@ -354,6 +446,39 @@ const UploadPage = () => {
         <div className="absolute top-40 right-20 w-96 h-96 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(167, 141, 120, 0.06)', animationDelay: '2s'}}></div>
         <div className="absolute bottom-20 left-1/3 w-80 h-80 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(190, 181, 169, 0.05)', animationDelay: '4s'}}></div>
       </div>
+=======
+    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-12"
+        >
+          <div className="flex items-center justify-center mb-4">
+            <Heart className="h-12 w-12 text-primary-600 mr-3" />
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+              Hatıra Köşesi
+            </h1>
+          </div>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            {eventId ? (
+              <>
+                <span className="font-semibold text-primary-600">{formData.eventName}</span> etkinliği için 
+                fotoğraf ve videolarınızı yükleyin. Hatıralarınız güvenle saklanacak.
+              </>
+            ) : (
+              'Etkinliğiniz için fotoğraf ve videolarınızı yükleyin.'
+            )}
+          </p>
+          {qrId && (
+            <p className="text-lg text-gray-500 mt-2">
+              Etkinlik: <span className="font-semibold text-primary-600">{formData.eventName}</span>
+            </p>
+          )}
+        </motion.div>
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
       <div className="relative z-10 py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
@@ -530,7 +655,79 @@ const UploadPage = () => {
                           Dosyaları buraya sürükleyin veya tıklayarak seçin
                         </p>
                       </div>
+<<<<<<< HEAD
                     </div>
+=======
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Form */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="card"
+          >
+            <h3 className="text-xl font-semibold text-gray-900 mb-6">
+              Bilgilerinizi Girin
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <User className="inline h-4 w-4 mr-1" />
+                  Adınız *
+                </label>
+                <input
+                  type="text"
+                  name="guestName"
+                  value={formData.guestName}
+                  onChange={handleInputChange}
+                  placeholder="Adınızı girin"
+                  className="input-field"
+                  disabled={uploading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <MessageCircle className="inline h-4 w-4 mr-1" />
+                  Mesajınız (İsteğe bağlı)
+                </label>
+                <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleInputChange}
+                  placeholder="Etkinlik hakkında mesajınız..."
+                  rows={4}
+                  className="input-field resize-none"
+                  disabled={uploading}
+                />
+              </div>
+
+              <button
+                onClick={handleUpload}
+                disabled={uploading || files.length === 0}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                  uploading || files.length === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'btn-primary'
+                }`}
+              >
+                {uploading ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Yükleniyor...
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center">
+                    <Upload className="mr-2 h-5 w-5" />
+                    Dosyaları Yükle
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
                   </div>
                 )}
 

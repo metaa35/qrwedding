@@ -31,6 +31,7 @@ const upload = multer({
   }
 });
 
+<<<<<<< HEAD
 // Tek dosya yükleme - QR ID kontrolü ile
 router.post('/single', upload.single('file'), async (req, res) => {
   const qrId = req.body.qrId;
@@ -63,9 +64,24 @@ router.post('/single', upload.single('file'), async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'QR kod doğrulanamadı!'
+=======
+// Tek dosya yükleme - QR ID gerekli
+router.post('/single', upload.single('file'), async (req, res) => {
+  const qrId = req.body.qrId;
+  
+  // QR ID yoksa erişim engellendi
+  if (!qrId) {
+    return res.status(403).json({
+      success: false,
+      message: 'QR kod gerekli! Bu sayfaya sadece QR kodundan erişebilirsiniz.'
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     });
   }
   try {
+    console.log('🔍 Upload endpoint çağrıldı');
+    console.log('🔍 Request body:', req.body);
+    console.log('🔍 Request file:', req.file ? 'Dosya var' : 'Dosya yok');
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -74,6 +90,13 @@ router.post('/single', upload.single('file'), async (req, res) => {
     }
 
     const { eventName, uploaderName, message, qrId } = req.body;
+
+    if (!uploaderName || uploaderName.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Yükleyici adı gerekli!'
+      });
+    }
     
     console.log('📥 Upload request body:', req.body);
     console.log('📥 uploaderName:', JSON.stringify(uploaderName));
@@ -83,6 +106,39 @@ router.post('/single', upload.single('file'), async (req, res) => {
     // Etkinlik adı artık zorunlu değil, varsayılan değer kullan
     const finalEventName = eventName || 'Etkinlik';
 
+<<<<<<< HEAD
+=======
+    // QR ID varsa etkinlik adını QR kodundan al, client'tan gelen etkinlik adını kullanma
+    let finalEventName = eventName;
+    if (qrId) {
+      try {
+        // QR kodundan etkinlik adını al
+        const { data: qrCode, error: qrError } = await supabase
+          .from('qr_codes')
+          .select('event_name')
+          .eq('qr_id', qrId)
+          .single();
+
+        if (qrError || !qrCode) {
+          return res.status(400).json({
+            success: false,
+            message: 'Geçersiz QR kod!'
+          });
+        }
+
+        // QR kodundan gelen etkinlik adını kullan
+        finalEventName = qrCode.event_name;
+        console.log('🔒 QR ID ile gelen etkinlik adı kullanılıyor:', finalEventName);
+      } catch (error) {
+        console.error('QR kod doğrulama hatası:', error);
+        return res.status(400).json({
+          success: false,
+          message: 'QR kod doğrulanamadı!'
+        });
+      }
+    }
+
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     // QR ID varsa dosya adına ekle, yoksa sadece event name kullan
     const fileName = qrId 
       ? `${qrId}_${Date.now()}_${req.file.originalname}`
@@ -99,11 +155,14 @@ router.post('/single', upload.single('file'), async (req, res) => {
       qrId
     );
 
+<<<<<<< HEAD
     // Upload type belirleme
     const uploadType = req.file.mimetype.startsWith('image/') ? 'photo' : 
                       req.file.mimetype.startsWith('video/') ? 'video' : 
                       req.file.mimetype.startsWith('audio/') ? 'audio' : 'file';
 
+=======
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     // Supabase'e kaydet - QR ID ile
     const { data: uploadRecord, error: supabaseError } = await supabase
       .from('uploads')
@@ -116,8 +175,12 @@ router.post('/single', upload.single('file'), async (req, res) => {
         event_name: finalEventName,
         qr_id: qrId || null, // QR ID'yi kaydet
         uploader_name: uploaderName || 'Anonim',
+<<<<<<< HEAD
         message: message,
         upload_type: uploadType
+=======
+        message: message
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
       }])
       .select()
       .single();
@@ -153,6 +216,7 @@ router.post('/single', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
+<<<<<<< HEAD
     // Hata tipine göre özel mesaj
     let errorMessage = 'Dosya yükleme başarısız!';
     if (error.message.includes('File too large')) {
@@ -168,10 +232,28 @@ router.post('/single', upload.single('file'), async (req, res) => {
     res.status(500).json({
       success: false,
       message: errorMessage
+=======
+    console.error('Dosya yükleme hatası:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+    
+    // Memory storage kullandığımız için dosya temizleme işlemi gerekmez
+    
+    res.status(500).json({
+      success: false,
+      message: 'Dosya yükleme başarısız!',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     });
   }
 });
 
+<<<<<<< HEAD
 // Çoklu dosya yükleme - QR ID varsa authentication gerekmez
 router.post('/multiple', upload.array('files', 10), async (req, res) => {
   // QR ID varsa authentication kontrolü yapma
@@ -187,6 +269,18 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
         message: 'Yetkilendirme gerekli!'
       });
     }
+=======
+// Çoklu dosya yükleme - QR ID gerekli
+router.post('/multiple', upload.array('files', 10), async (req, res) => {
+  const qrId = req.body.qrId;
+  
+  // QR ID yoksa erişim engellendi
+  if (!qrId) {
+    return res.status(403).json({
+      success: false,
+      message: 'QR kod gerekli! Bu sayfaya sadece QR kodundan erişebilirsiniz.'
+    });
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
   }
   try {
     if (!req.files || req.files.length === 0) {
@@ -200,6 +294,43 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
 
     // Etkinlik adı artık zorunlu değil, varsayılan değer kullan
     const finalEventName = eventName || 'Etkinlik';
+
+    if (!uploaderName || uploaderName.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Yükleyici adı gerekli!'
+      });
+    }
+
+    // QR ID varsa etkinlik adını QR kodundan al, client'tan gelen etkinlik adını kullanma
+    let finalEventName = eventName;
+    if (qrId) {
+      try {
+        // QR kodundan etkinlik adını al
+        const { data: qrCode, error: qrError } = await supabase
+          .from('qr_codes')
+          .select('event_name')
+          .eq('qr_id', qrId)
+          .single();
+
+        if (qrError || !qrCode) {
+          return res.status(400).json({
+            success: false,
+            message: 'Geçersiz QR kod!'
+          });
+        }
+
+        // QR kodundan gelen etkinlik adını kullan
+        finalEventName = qrCode.event_name;
+        console.log('🔒 QR ID ile gelen etkinlik adı kullanılıyor (çoklu):', finalEventName);
+      } catch (error) {
+        console.error('QR kod doğrulama hatası (çoklu):', error);
+        return res.status(400).json({
+          success: false,
+          message: 'QR kod doğrulanamadı!'
+        });
+      }
+    }
 
     const uploadedFiles = [];
     const errors = [];
@@ -221,11 +352,14 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
           message,
           qrId // QR ID'yi Google Drive servisine gönder
         );
+<<<<<<< HEAD
 
         // Upload type belirleme
         const uploadType = file.mimetype.startsWith('image/') ? 'photo' : 
                           file.mimetype.startsWith('video/') ? 'video' : 
                           file.mimetype.startsWith('audio/') ? 'audio' : 'file';
+=======
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
                  // Supabase'e kaydet - QR ID ile
          const { data: uploadRecord, error: supabaseError } = await supabase
@@ -249,6 +383,7 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
           throw supabaseError;
         }
 
+<<<<<<< HEAD
         uploadedFiles.push({
           id: uploadRecord.id,
           fileId: uploadedFile.fileId,
@@ -261,6 +396,20 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
           message: message,
           uploadedAt: uploadRecord.uploaded_at
         });
+=======
+                 uploadedFiles.push({
+           id: uploadRecord.id,
+           fileId: uploadedFile.fileId,
+           name: uploadedFile.fileName,
+           size: file.size,
+           mimeType: file.mimetype,
+           webViewLink: uploadedFile.webViewLink,
+           eventName: finalEventName,
+           uploaderName: uploaderName || 'Anonim',
+           message: message,
+           uploadedAt: uploadRecord.uploaded_at
+         });
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
         // Memory storage kullandığımız için dosya silme işlemi gerekmez
 
@@ -284,13 +433,20 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
 
   } catch (error) {
     console.error('Çoklu dosya yükleme hatası:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
     
     // Memory storage kullandığımız için dosya temizleme işlemi gerekmez
     
     res.status(500).json({
       success: false,
       message: 'Dosya yükleme başarısız!',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

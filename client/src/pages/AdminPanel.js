@@ -11,11 +11,15 @@ import {
   Edit,
   Check,
   BarChart3,
+<<<<<<< HEAD
   Sparkles,
   Crown,
   Settings,
   Activity,
   Zap
+=======
+  RefreshCw
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -25,6 +29,7 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [activeTab, setActiveTab] = useState('users');
 
   useEffect(() => {
     fetchUsers();
@@ -54,6 +59,8 @@ const AdminPanel = () => {
 
 
 
+
+
   const updateAdminStatus = async (userId, isAdmin) => {
     try {
       await axios.put(`/api/admin/users/${userId}/admin`, { isAdmin });
@@ -63,6 +70,18 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Admin yetkisi güncelleme hatası:', error);
       toast.error('Admin yetkisi güncellenemedi!');
+    }
+  };
+
+  const resetUserQR = async (userId) => {
+    try {
+      await axios.post(`/api/admin/users/${userId}/reset-qr`);
+      toast.success('Kullanıcının QR hakları sıfırlandı!');
+      fetchUsers();
+      fetchStats();
+    } catch (error) {
+      console.error('QR hakları sıfırlanamadı:', error);
+      toast.error('QR hakları sıfırlanamadı!');
     }
   };
 
@@ -187,9 +206,89 @@ const AdminPanel = () => {
         <div className="absolute bottom-32 left-1/3 w-56 h-56 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(190, 181, 169, 0.05)', animationDelay: '4s'}}></div>
       </div>
 
+<<<<<<< HEAD
       <div className="relative z-10 py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
+=======
+
+        {/* Kullanıcı Listesi */}
+        <>
+          {/* Stats Cards */}
+            {stats && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-lg shadow p-6"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Toplam Kullanıcı</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white rounded-lg shadow p-6"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Check className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Aktif Kullanıcı</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.activeUsers}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-lg shadow p-6"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Shield className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Admin</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.adminUsers}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-lg shadow p-6"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <BarChart3 className="h-6 w-6 text-orange-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Bu Hafta</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.newUsersThisWeek}</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Bulk Actions */}
+        {selectedUsers.length > 0 && (
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -446,6 +545,7 @@ const AdminPanel = () => {
                             <QrCode className="h-3 w-3 mr-1" />
                             QR
                           </span>
+<<<<<<< HEAD
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                             user.can_upload_files ? 'border' : 'border'
                           }`} style={{
@@ -536,6 +636,40 @@ const AdminPanel = () => {
                           >
                             <Trash2 className="h-5 w-5" />
                           </button>
+=======
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setEditingUser(editingUser === user.id ? null : user.id)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => resetUserQR(user.id)}
+                          className="text-orange-600 hover:text-orange-900"
+                          title="QR haklarını sıfırla"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => updateAdminStatus(user.id, !user.is_admin)}
+                          className="text-purple-600 hover:text-purple-900"
+                          title={user.is_admin ? "Admin yetkisini kaldır" : "Admin yap"}
+                        >
+                          <Shield className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteUser(user.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Kullanıcıyı sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
                       </div>
                     </td>
                   </motion.tr>
@@ -545,6 +679,8 @@ const AdminPanel = () => {
             </div>
           </div>
         </div>
+          </>
+
       </div>
     </div>
   );

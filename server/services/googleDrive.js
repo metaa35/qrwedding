@@ -130,6 +130,7 @@ class GoogleDriveService {
       });
 
       console.log('✅ Dosya başarıyla yüklendi:', response.data);
+<<<<<<< HEAD
 
       // Dosyayı herkese açık hale getir
       try {
@@ -146,6 +147,8 @@ class GoogleDriveService {
       } catch (permissionError) {
         console.warn('⚠️ Dosya paylaşım ayarları yapılamadı:', permissionError.message);
       }
+=======
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
       return {
         fileId: response.data.id,
@@ -211,6 +214,7 @@ class GoogleDriveService {
 
       console.log('✅ Dosya başarıyla yüklendi:', response.data);
 
+<<<<<<< HEAD
       // Dosyayı herkese açık hale getir
       try {
         await this.drive.permissions.create({
@@ -227,6 +231,8 @@ class GoogleDriveService {
         console.warn('⚠️ Dosya paylaşım ayarları yapılamadı:', permissionError.message);
       }
 
+=======
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
       return {
         fileId: response.data.id,
         fileName: response.data.name,
@@ -235,6 +241,7 @@ class GoogleDriveService {
       };
 
     } catch (error) {
+<<<<<<< HEAD
       // Video dosyaları için özel hata mesajları
       if (mimeType.startsWith('video/')) {
         if (error.message.includes('quota')) {
@@ -246,6 +253,9 @@ class GoogleDriveService {
         }
       }
       
+=======
+      console.error('❌ Buffer dosya yükleme hatası:', error);
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
       throw error;
     }
   }

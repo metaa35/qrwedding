@@ -20,7 +20,11 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const QRGenerator = () => {
+<<<<<<< HEAD
   const { user, loading: authLoading } = useAuth();
+=======
+  const { user, loading } = useAuth();
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -110,6 +114,7 @@ const QRGenerator = () => {
 
   // Yetki kontrolü ve mevcut QR yükleme
   useEffect(() => {
+<<<<<<< HEAD
     console.log('QRGenerator useEffect - loading:', loading, 'authLoading:', authLoading, 'user:', user);
     
     // Loading durumunda bekle
@@ -117,6 +122,10 @@ const QRGenerator = () => {
       console.log('Loading durumunda bekleniyor...');
       return;
     }
+=======
+    // Loading sırasında bekle
+    if (loading) return;
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
     
     if (!user) {
       console.log('User bulunamadı, login sayfasına yönlendiriliyor...');
@@ -131,6 +140,7 @@ const QRGenerator = () => {
       navigate('/');
       return;
     }
+<<<<<<< HEAD
     
     console.log('User bilgileri alındı, QR yükleme başlıyor...');
     
@@ -144,10 +154,13 @@ const QRGenerator = () => {
     
     // Kullanıcının mevcut QR'ını yükle
     loadExistingQR();
+=======
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
   }, [user, loading, navigate]);
 
   // Auth loading kontrolü
   useEffect(() => {
+<<<<<<< HEAD
     if (!authLoading) {
       setLoading(false);
     }
@@ -163,6 +176,29 @@ const QRGenerator = () => {
       }, 1000);
     }
   }, []);
+=======
+    const checkExistingQR = async () => {
+      if (!user || loading) return;
+      
+      try {
+        const response = await axios.get('/api/qr/user-qr');
+        if (response.data.success && response.data.qrCode) {
+          setQrData(response.data.qrCode);
+          setFormData({
+            eventName: response.data.qrCode.event_name || '',
+            eventDate: response.data.qrCode.event_date || '',
+            customMessage: response.data.qrCode.custom_message || '',
+            url: response.data.qrCode.url || ''
+          });
+        }
+      } catch (error) {
+        console.log('Kullanıcının QR kodu yok veya hata:', error);
+      }
+    };
+
+    checkExistingQR();
+  }, [user, loading]);
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
   const handleChange = (e) => {
     setFormData({
@@ -435,6 +471,18 @@ const QRGenerator = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{borderColor: '#6E473B'}}></div>
+      </div>
+    );
+  }
+
+  // Loading durumunda bekle
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Yükleniyor...</p>
+        </div>
       </div>
     );
   }

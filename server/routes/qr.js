@@ -83,8 +83,8 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
           code: 'PERMISSION_REQUIRED'
         });
       }
-    }
 
+<<<<<<< HEAD
     // Admin değilse QR oluşturma kontrolü yap
     if (!req.user.is_admin) {
       try {
@@ -111,6 +111,23 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
       } catch (error) {
         console.error('QR kontrol hatası:', error);
         throw error;
+=======
+      // Admin olmayan kullanıcılar için QR sayısı kontrolü (limit: 10)
+      const { data: existingQRs, error: checkError } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existingQRs && existingQRs.length >= 10) {
+        return res.status(400).json({
+          success: false,
+          message: 'QR kod oluşturma limitinize ulaştınız! Maksimum 10 QR kod oluşturabilirsiniz.'
+        });
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
       }
     }
 

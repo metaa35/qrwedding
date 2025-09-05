@@ -1,5 +1,6 @@
 const express = require('express');
 const supabase = require('../services/supabase');
+<<<<<<< HEAD
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,6 +8,25 @@ const router = express.Router();
 // Tüm admin route'larını koruma altına al
 router.use(authenticateToken);
 router.use(requireAdmin);
+=======
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+// Tüm admin route'ları için authentication gerekli
+router.use(authenticateToken);
+
+// Admin kontrolü middleware
+const requireAdmin = (req, res, next) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin yetkisi gerekli!'
+    });
+  }
+  next();
+};
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
 // Tüm kullanıcıları listele
 router.get('/users', async (req, res) => {
@@ -291,6 +311,56 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// QR hakkı resetle
+router.post('/users/:id/reset-qr', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Kullanıcının QR kodlarını sil
+    const { error: qrError } = await supabase
+      .from('qr_codes')
+      .delete()
+      .eq('user_id', id);
+
+    if (qrError) {
+      console.error('QR kodları silme hatası:', qrError);
+      throw qrError;
+    }
+
+    // Kullanıcı bilgilerini güncelle (qr_count alanı yoksa sadece updated_at)
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .update({
+        updated_at: new Date()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (userError) {
+      console.error('Kullanıcı güncelleme hatası:', userError);
+      throw userError;
+    }
+
+    // Şifreyi gizle
+    const { password_hash, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      message: 'Kullanıcının QR hakları sıfırlandı!',
+      user: safeUser
+    });
+
+  } catch (error) {
+    console.error('QR hakkı resetleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR hakları sıfırlanamadı!',
+      error: error.message
+    });
+  }
+});
+
 // İstatistikler
 router.get('/stats', async (req, res) => {
   try {
@@ -388,6 +458,7 @@ router.get('/health', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // Kullanıcının QR oluşturma hakkını sıfırla
 router.post('/reset-user-qr/:userId', async (req, res) => {
   try {
@@ -518,5 +589,8 @@ router.post('/reset-all-qr', async (req, res) => {
     });
   }
 });
+=======
+
+>>>>>>> 4caf97fe3511584431fbcc49372ab192631e0ab9
 
 module.exports = router;
