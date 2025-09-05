@@ -16,25 +16,81 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Sayfa yüklendiğinde localStorage'dan kullanıcı bilgilerini al
+    console.log('AuthContext useEffect başlıyor...');
+    // Sayfa yüklendiğinde localStorage'dan kullanıcı bilgilerini al ve token'ı doğrula
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
+
+    console.log('AuthContext - token:', token ? 'var' : 'yok', 'userData:', userData ? 'var' : 'yok');
 
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
+        console.log('AuthContext - parsedUser:', parsedUser);
+        // Geçici olarak user'ı set et (token kontrolü sırasında)
         setUser(parsedUser);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Rate limiting için debounce
+        const timeoutId = setTimeout(() => {
+          console.log('AuthContext - token validation başlıyor...');
+          // Token'ın geçerli olup olmadığını server'dan kontrol et
+          axios.get('/api/auth/me')
+            .then(response => {
+              console.log('AuthContext - token validation response:', response.data);
+              if (response.data.success) {
+                setUser(response.data.user);
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+                console.log('AuthContext - user güncellendi:', response.data.user);
+              } else {
+                console.log('AuthContext - token geçersiz, temizleniyor...');
+                // Token geçersiz, localStorage'ı temizle
+                setUser(null);
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                delete axios.defaults.headers.common['Authorization'];
+              }
+              // Her durumda loading'i false yap
+              setLoading(false);
+              console.log('AuthContext - loading false (token validation completed)');
+            })
+            .catch(error => {
+              console.error('Token validation error:', error);
+              // 429 hatası için özel işlem
+              if (error.response?.status === 429) {
+                console.log('Rate limit exceeded, using cached user data');
+                // Rate limit aşıldıysa cached data'yı kullan
+                setLoading(false);
+                console.log('AuthContext - loading false (rate limit)');
+                return;
+              }
+              // Token geçersiz, localStorage'ı temizle
+              setUser(null);
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              delete axios.defaults.headers.common['Authorization'];
+              setLoading(false);
+              console.log('AuthContext - loading false (token validation error)');
+            })
+        }, 1000); // 1 saniye bekle
       } catch (error) {
         console.error('User data parse error:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setLoading(false);
+        console.log('AuthContext - loading false (parse error)');
       }
+    } else {
+      console.log('AuthContext - token/userData yok, loading false');
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const login = (userData, token) => {
+    // Debug: Login fonksiyonunda kullanıcı bilgilerini konsola yazdır
+    console.log('AuthContext - Login called with userData:', userData);
+    console.log('AuthContext - is_admin value:', userData.is_admin);
+    
     setUser(userData);
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));

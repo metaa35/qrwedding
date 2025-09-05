@@ -8,10 +8,10 @@ const router = express.Router();
 // Kullanıcı kaydı
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, companyName } = req.body;
+    const { username, email, password } = req.body;
 
     // Gerekli alanları kontrol et
-    if (!username || !email || !password || !companyName) {
+    if (!username || !email || !password) {
       return res.status(400).json({
         success: false,
         message: 'Tüm alanlar gerekli!'
@@ -38,14 +38,13 @@ router.post('/register', async (req, res) => {
     }
 
     // Drive folder ID oluştur
-    const driveFolderId = `folder_${companyName}_${Date.now()}`;
+    const driveFolderId = `folder_${username}_${Date.now()}`;
 
     // Yeni kullanıcı oluştur
     const user = await User.create({
       username,
       email,
       password,
-      company_name: companyName,
       drive_folder_id: driveFolderId
     });
 
@@ -126,11 +125,16 @@ router.post('/login', async (req, res) => {
     // Token oluştur
     const token = generateToken(user.id);
 
+    // Debug: Login response'unu konsola yazdır
+    const safeUser = user.toSafeObject();
+    console.log('Server - Login response user object:', safeUser);
+    console.log('Server - is_admin value:', safeUser.is_admin);
+
     res.json({
       success: true,
       message: 'Giriş başarılı!',
       token,
-      user: user.toSafeObject()
+      user: safeUser
     });
 
   } catch (error) {

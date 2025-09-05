@@ -3,7 +3,23 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
+
+// Global error handler
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+try {
+  require('dotenv').config();
+} catch (error) {
+  console.error('Dotenv config error:', error);
+}
 
 const uploadRoutes = require('./routes/upload');
 const qrRoutes = require('./routes/qr');
@@ -62,8 +78,8 @@ app.use(cors({
 }));
 
 // Body parsing middleware
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '2gb' }));
+app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
 // Uploads klasörünü serve et
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -74,26 +90,49 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/qr', qrRoutes);
-app.use('/api/admin', adminRoutes);
+try {
+  app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/upload', uploadRoutes);
+  app.use('/api/qr', qrRoutes);
+  app.use('/api/admin', adminRoutes);
+} catch (error) {
+  console.error('Route loading error:', error);
+}
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  try {
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
   res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    message: 'Server is working!',
+    timestamp: new Date().toISOString()
   });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
+  console.error('Error stack:', err.stack);
   res.status(500).json({
     error: 'Sunucu hatası oluştu',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Bir hata oluştu'
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Bir hata oluştu',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 

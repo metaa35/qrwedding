@@ -1,7 +1,12 @@
 const express = require('express');
 const supabase = require('../services/supabase');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Tüm admin route'larını koruma altına al
+router.use(authenticateToken);
+router.use(requireAdmin);
 
 // Tüm kullanıcıları listele
 router.get('/users', async (req, res) => {
@@ -83,6 +88,58 @@ router.put('/users/:id/permissions', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Kullanıcı yetkileri güncellenemedi!',
+      error: error.message
+    });
+  }
+});
+
+// QR hakkını sıfırla - kullanıcının qr_created_count'unu sıfırla ve mevcut QR kodlarını pasif yap
+router.post('/users/:id/reset-qr-limit', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Kullanıcının qr_created_count'unu sıfırla
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .update({
+        qr_created_count: 0,
+        updated_at: new Date()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (userError) throw userError;
+
+    // Kullanıcının mevcut aktif QR kodlarını pasif yap
+    const { error: qrError } = await supabase
+      .from('qr_codes')
+      .update({
+        is_active: false,
+        updated_at: new Date()
+      })
+      .eq('user_id', id)
+      .eq('is_active', true);
+
+    if (qrError) {
+      console.error('QR kodları pasif yapma hatası:', qrError);
+      // Bu hata kritik değil, devam et
+    }
+
+    // Şifreyi gizle
+    const { password_hash, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      message: 'QR hakkı sıfırlandı! Kullanıcının mevcut QR kodları pasif yapıldı ve yeni QR kod oluşturabilir.',
+      user: safeUser
+    });
+
+  } catch (error) {
+    console.error('QR hakkı sıfırlama hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR hakkı sıfırlanamadı!',
       error: error.message
     });
   }
@@ -326,6 +383,137 @@ router.get('/health', async (req, res) => {
       success: false,
       status: 'unhealthy',
       database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+
+// Kullanıcının QR oluşturma hakkını sıfırla
+router.post('/reset-user-qr/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Kullanıcı ID gerekli!'
+      });
+    }
+
+    // Kullanıcının mevcut aktif QR kodlarını pasif yap
+    const { error: qrError } = await supabase
+      .from('qr_codes')
+      .update({
+        is_active: false,
+        updated_at: new Date()
+      })
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (qrError) {
+      console.error('QR kodları pasif yapma hatası:', qrError);
+      // Bu hata kritik değil, devam et
+    }
+
+    // Kullanıcının QR oluşturma durumunu sıfırla
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({
+        has_created_qr: false,
+        qr_created_at: null,
+        updated_at: new Date()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('QR sıfırlama hatası:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'QR hakkı sıfırlanamadı!',
+        error: error.message
+      });
+    }
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kullanıcı bulunamadı!'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Kullanıcının QR oluşturma hakkı başarıyla sıfırlandı! Mevcut QR kodları pasif yapıldı.',
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        has_created_qr: updatedUser.has_created_qr,
+        qr_created_at: updatedUser.qr_created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('QR sıfırlama genel hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR hakkı sıfırlanırken bir hata oluştu!',
+      error: error.message
+    });
+  }
+});
+
+// Tüm kullanıcıların QR oluşturma haklarını sıfırla
+router.post('/reset-all-qr', async (req, res) => {
+  try {
+    // Önce tüm aktif QR kodlarını pasif yap
+    const { error: qrError } = await supabase
+      .from('qr_codes')
+      .update({
+        is_active: false,
+        updated_at: new Date()
+      })
+      .eq('is_active', true);
+
+    if (qrError) {
+      console.error('QR kodları pasif yapma hatası:', qrError);
+      // Bu hata kritik değil, devam et
+    }
+
+    // Tüm kullanıcıların QR oluşturma durumunu sıfırla
+    const { data: updatedUsers, error } = await supabase
+      .from('users')
+      .update({
+        has_created_qr: false,
+        qr_created_at: null,
+        updated_at: new Date()
+      })
+      .neq('is_admin', true) // Admin kullanıcıları hariç tut
+      .select('id, username, email, has_created_qr, qr_created_at');
+
+    if (error) {
+      console.error('Toplu QR sıfırlama hatası:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'QR hakları sıfırlanamadı!',
+        error: error.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Tüm kullanıcıların QR oluşturma hakları başarıyla sıfırlandı! Mevcut QR kodları pasif yapıldı. (${updatedUsers.length} kullanıcı)`,
+      affectedUsers: updatedUsers.length,
+      users: updatedUsers
+    });
+
+  } catch (error) {
+    console.error('Toplu QR sıfırlama genel hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR hakları sıfırlanırken bir hata oluştu!',
       error: error.message
     });
   }

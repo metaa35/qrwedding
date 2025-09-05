@@ -10,13 +10,17 @@ import {
   Calendar, 
   MessageCircle,
   Share2,
-  CheckCircle
+  CheckCircle,
+  Sparkles,
+  Zap,
+  Star,
+  ArrowRight
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const QRGenerator = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -29,438 +33,716 @@ const QRGenerator = () => {
   const [qrData, setQrData] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
-  // Yetki kontrolü
+  // QR Şablonları - Görsel tabanlı
+  const templates = [
+    {
+      id: 'wedding-love-template',
+      name: 'Düğün - Aşk Şablonu',
+      description: 'Elegant wedding template with love theme - görsel şablon',
+      image: '/templates/test.png',
+      qrPosition: { x: 325, y: 710, size: 150 },
+      textPositions: {
+        eventName: { x: 400, y: 700, fontSize: 20, color: '#373434' },
+        date: { x: 400, y: 880, fontSize: 18, color: '#373434' },
+        customMessage: { x: 400, y: 920, fontSize: 16, color: '#373434' }
+      }
+    }
+  ];
+
+  // Kullanıcı bilgilerini yeniden yükle
+  const refreshUserData = async () => {
+    try {
+      const response = await axios.get('/api/auth/me');
+      if (response.data.success) {
+        // AuthContext'teki user bilgilerini güncelle
+        // Bu işlem AuthContext'te yapılmalı, burada sadece tetikleyici olarak kullanıyoruz
+        console.log('Kullanıcı bilgileri yenilendi');
+      }
+    } catch (error) {
+      console.error('Kullanıcı bilgileri yenileme hatası:', error);
+    }
+  };
+
+  // Mevcut QR'ı yükle
+  const loadExistingQR = async () => {
+    try {
+      console.log('Mevcut QR yükleniyor...');
+      const response = await axios.get('/api/qr/user-qr');
+      console.log('QR response:', response.data);
+      console.log('QR response success:', response.data.success);
+      console.log('QR response qrCode:', response.data.qrCode);
+      console.log('QR response qrCode type:', typeof response.data.qrCode);
+      
+      if (response.data.success && response.data.qrCode && response.data.qrCode !== null) {
+        const existingQR = response.data.qrCode;
+        console.log('Mevcut QR bulundu:', existingQR);
+        setQrData({
+          qrCodeUrl: existingQR.qrCode,
+          eventName: existingQR.eventName,
+          eventDate: existingQR.eventDate,
+          customMessage: existingQR.customMessage,
+          url: existingQR.url,
+          qrId: existingQR.qrId
+        });
+        console.log('Mevcut QR yüklendi:', existingQR);
+      } else {
+        console.log('Mevcut QR bulunamadı - yeni QR oluşturulabilir');
+        // QR bulunamadığında qrData'yı temizle
+        setQrData(null);
+      }
+    } catch (error) {
+      console.error('Mevcut QR yükleme hatası:', error);
+      if (error.response?.status === 429) {
+        console.log('Rate limit exceeded, retrying later...');
+        // Rate limit aşıldıysa 3 saniye sonra tekrar dene
+        setTimeout(() => {
+          loadExistingQR();
+        }, 3000);
+        return;
+      }
+      // Hata durumunda sessizce devam et
+    }
+  };
+
+  // Yetki kontrolü ve mevcut QR yükleme
   useEffect(() => {
+    console.log('QRGenerator useEffect - loading:', loading, 'authLoading:', authLoading, 'user:', user);
+    
+    // Loading durumunda bekle
+    if (loading) {
+      console.log('Loading durumunda bekleniyor...');
+      return;
+    }
+    
     if (!user) {
+      console.log('User bulunamadı, login sayfasına yönlendiriliyor...');
       toast.error('QR kod oluşturmak için giriş yapmalısınız!');
       navigate('/login');
       return;
     }
     
-    if (!user.can_create_qr && !user.is_admin) {
+    if (!user?.can_create_qr && !user?.is_admin) {
+      console.log('QR oluşturma yetkisi yok, ana sayfaya yönlendiriliyor...');
       toast.error('QR kod oluşturma yetkiniz yok!');
       navigate('/');
       return;
     }
-  }, [user, navigate]);
+    
+    console.log('User bilgileri alındı, QR yükleme başlıyor...');
+    
+    // Company name'i formData'ya ekle
+    if (user?.company_name) {
+      setFormData(prev => ({
+        ...prev,
+        eventName: user.company_name
+      }));
+    }
+    
+    // Kullanıcının mevcut QR'ını yükle
+    loadExistingQR();
+  }, [user, loading, navigate]);
 
-  // QR kod kontrolü - kullanıcının daha önce QR oluşturup oluşturmadığını kontrol et
+  // Auth loading kontrolü
   useEffect(() => {
-    const checkExistingQR = async () => {
-      if (!user) return;
-      
-      try {
-        const response = await axios.get('/api/qr/user-qr');
-        if (response.data.success && response.data.qrCode) {
-          setQrData(response.data.qrCode);
-          setFormData({
-            eventName: response.data.qrCode.event_name || '',
-            eventDate: response.data.qrCode.event_date || '',
-            customMessage: response.data.qrCode.custom_message || '',
-            url: response.data.qrCode.url || ''
-          });
-        }
-      } catch (error) {
-        console.log('Kullanıcının QR kodu yok veya hata:', error);
-      }
-    };
+    if (!authLoading) {
+      setLoading(false);
+    }
+  }, [authLoading]);
 
-    checkExistingQR();
-  }, [user]);
+  // URL parametrelerini kontrol et (QR sıfırlama sonrası)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('reset') === 'success') {
+      // QR sıfırlama başarılı, sayfayı yenile
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  }, []);
 
-  const handleInputChange = (e) => {
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handlePresetClick = (preset) => {
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      eventName: preset.name,
+      eventDate: preset.date,
+      customMessage: preset.message
     }));
   };
 
-  const generateQR = async () => {
+  const handleGenerateQR = async () => {
     if (!formData.eventName.trim()) {
-      toast.error('Lütfen etkinlik adını girin!');
+      toast.error('Etkinlik adı gereklidir!');
       return;
     }
 
-    // Admin değilse QR kontrolü yap
-    if (!user.is_admin && qrData) {
-      toast.error('Zaten bir QR kodunuz var! Her kullanıcı sadece 1 QR kod oluşturabilir.');
+    // Eğer kullanıcı zaten QR oluşturmuşsa ve admin değilse
+    if (user?.has_created_qr && !user?.is_admin) {
+      toast.error('QR kod oluşturma hakkınızı kullandınız! Admin panelinden sıfırlatmanız gerekiyor.');
       return;
     }
-
-    // Yetki kontrolü
-    if (!user.is_admin && !user.can_create_qr) {
-      toast.error('QR kod oluşturma yetkiniz yok! Admin panelinden yetki almanız gerekiyor.');
-      return;
-    }
-
-    // URL oluştur
-    const baseUrl = window.location.origin;
-    // QR ID'yi server tarafında oluştur, burada sadece eventName gönder
-    const uploadUrl = `${baseUrl}/upload?eventName=${encodeURIComponent(formData.eventName)}`;
 
     setGenerating(true);
-
     try {
       const response = await axios.post('/api/qr/generate', {
-        url: uploadUrl,
         eventName: formData.eventName,
         eventDate: formData.eventDate,
-        customMessage: formData.customMessage
+        customMessage: formData.customMessage,
+        url: formData.url
       });
-      
+
       if (response.data.success) {
-        setQrData(response.data);
+        console.log('QR Response:', response.data);
+        // Backend'den gelen response'u frontend formatına çevir
+        const qrData = {
+          qrCodeUrl: response.data.qrCode,
+          eventName: formData.eventName,
+          eventDate: formData.eventDate,
+          customMessage: formData.customMessage,
+          url: response.data.url,
+          qrId: response.data.qrId
+        };
+        console.log('QR Data:', qrData);
+        setQrData(qrData);
+        
+        // Kullanıcı bilgilerini güncelle (has_created_qr = true)
+        if (user) {
+          user.has_created_qr = true;
+          user.qr_created_at = new Date().toISOString();
+        }
+        
+        // QR oluşturulduktan sonra mevcut QR'ı yeniden yükle
+        setTimeout(() => {
+          loadExistingQR();
+        }, 500);
+        
         toast.success('QR kod başarıyla oluşturuldu!');
+      } else {
+        toast.error(response.data.message || 'QR kod oluşturulamadı!');
       }
     } catch (error) {
       console.error('QR generation error:', error);
-      if (error.response?.data?.message) {
+      if (error.response?.data?.code === 'QR_ALREADY_CREATED') {
+        toast.error('QR kod oluşturma hakkınızı kullandınız! Admin panelinden sıfırlatmanız gerekiyor.');
+      } else if (error.response?.data?.code === 'PERMISSION_REQUIRED') {
+        toast.error('QR kod oluşturma yetkiniz yok! Admin panelinden yetki almanız gerekiyor.');
+        navigate('/pricing');
+      } else if (error.response?.data?.message) {
         toast.error(error.response.data.message);
       } else {
-        toast.error('QR kod oluşturulurken hata oluştu!');
+        toast.error('QR kod oluşturulurken bir hata oluştu!');
       }
     } finally {
       setGenerating(false);
     }
   };
 
-  const downloadQR = () => {
-    if (!qrData) return;
-
-    const link = document.createElement('a');
-    link.href = qrData.qrCode;
-    const eventName = formData.eventName || 'event';
-    link.download = `${eventName.replace(/\s+/g, '_')}_QR.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success('QR kod indirildi!');
+  const handleDownload = () => {
+    if (qrData?.qrCodeUrl) {
+      const link = document.createElement('a');
+      link.href = qrData.qrCodeUrl;
+      link.download = `qr-code-${formData.eventName.replace(/\s+/g, '-')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('QR kod indirildi!');
+    }
   };
 
-  const copyQRUrl = async () => {
-    if (!qrData) return;
+  const handleDownloadWithTemplate = async (template) => {
+    if (!qrData?.qrCodeUrl) return;
 
     try {
-      await navigator.clipboard.writeText(qrData.url);
-      setCopied(true);
-      toast.success('QR kod URL\'i kopyalandı!');
+      // Canvas oluştur
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 800;
+      canvas.height = 1000;
+
+      // Şablon görselini yükle
+      const templateImage = new Image();
+      templateImage.crossOrigin = 'anonymous';
       
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast.error('URL kopyalanamadı!');
-    }
-  };
+      await new Promise((resolve, reject) => {
+        templateImage.onload = resolve;
+        templateImage.onerror = reject;
+        templateImage.src = template.image;
+      });
 
-  const shareQR = async () => {
-    if (!qrData) return;
+      // Şablon görselini canvas'a çiz
+      ctx.drawImage(templateImage, 0, 0, canvas.width, canvas.height);
 
-    if (navigator.share) {
-      try {
-        const eventName = formData.eventName || 'Etkinlik';
-        await navigator.share({
-          title: `${eventName} - QR Kod`,
-          text: 'Bu QR kodu okutarak fotoğraf yükleyebilirsiniz!',
-          url: qrData.url
-        });
-      } catch (error) {
-        console.log('Share cancelled');
+      // QR kodunu yükle
+      const qrImage = new Image();
+      qrImage.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve, reject) => {
+        qrImage.onload = resolve;
+        qrImage.onerror = reject;
+        qrImage.src = qrData.qrCodeUrl;
+      });
+
+      // QR kodunu şablona oturt
+      const { x: qrX, y: qrY, size: qrSize } = template.qrPosition;
+      
+      // QR kodu çiz
+      ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+      
+      // QR kodun arka planını beyaz yap, siyah kısımları koru
+      const imageData = ctx.getImageData(qrX, qrY, qrSize, qrSize);
+      const data = imageData.data;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        // Beyaz pikselleri beyaz bırak, siyah pikselleri siyah bırak
+        if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) {
+          // Beyaz pikseller - beyaz bırak
+          data[i] = 255;     // Red
+          data[i + 1] = 255; // Green
+          data[i + 2] = 255; // Blue
+          data[i + 3] = 255; // Alpha (opak)
+        } else {
+          // Siyah pikseller - siyah bırak
+          data[i] = 0;       // Red
+          data[i + 1] = 0;   // Green
+          data[i + 2] = 0;   // Blue
+          data[i + 3] = 255; // Alpha (opak)
+        }
       }
-    } else {
-      copyQRUrl();
+      
+      ctx.putImageData(imageData, qrX, qrY);
+
+      // Metinleri ekle
+      ctx.textAlign = 'center';
+      
+      // Metin sarma fonksiyonu
+      const drawWrappedText = (text, x, y, maxWidth, fontSize, color) => {
+        ctx.fillStyle = color;
+        ctx.font = `bold ${fontSize}px Arial`;
+        
+        const words = text.split(' ');
+        let line = '';
+        let lineHeight = fontSize * 1.2;
+        let currentY = y;
+        
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          
+          if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, currentY);
+            line = words[n] + ' ';
+            currentY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, x, currentY);
+      };
+      
+      // Her metin pozisyonu için
+      Object.entries(template.textPositions).forEach(([key, pos]) => {
+        if (pos && pos.x && pos.y) {
+          let text = '';
+          switch (key) {
+            case 'eventName':
+              text = qrData.eventName || 'Düğün';
+              ctx.fillStyle = pos.color;
+              ctx.font = `bold ${pos.fontSize}px Arial`;
+              ctx.fillText(text, pos.x, pos.y);
+              break;
+            case 'date':
+              text = qrData.eventDate ? new Date(qrData.eventDate).toLocaleDateString('tr-TR') : '05.10.2025';
+              ctx.fillStyle = pos.color;
+              ctx.font = `bold ${pos.fontSize}px Arial`;
+              ctx.fillText(text, pos.x, pos.y);
+              break;
+            case 'customMessage':
+              text = qrData.customMessage || '';
+              if (text) {
+                drawWrappedText(text, pos.x, pos.y, 400, pos.fontSize, pos.color);
+              }
+              break;
+          }
+        }
+      });
+
+      // İndir
+      const link = document.createElement('a');
+      link.download = `qr-template-${template.id}-${qrData.eventName.replace(/\s+/g, '-')}.png`;
+      link.href = canvas.toDataURL();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`${template.name} şablonu ile QR kod indirildi!`);
+    } catch (error) {
+      console.error('Template download error:', error);
+      toast.error('Şablon indirme hatası! Şablon dosyası bulunamadı.');
     }
   };
 
-  const presetEvents = [
-    { name: 'Düğün', message: 'Anılarımızı paylaşın!' },
-    { name: 'Nişan', message: 'Nişan anılarımızı toplayalım!' },
-    { name: 'Sünnet', message: 'Sünnet töreni anıları!' },
-    { name: 'Doğum Günü', message: 'Doğum günü kutlaması!' },
-    { name: 'Yılbaşı', message: 'Yılbaşı kutlaması!' }
+  const handleCopyUrl = async () => {
+    if (qrData?.url) {
+      try {
+        await navigator.clipboard.writeText(qrData.url);
+        setCopied(true);
+        toast.success('URL kopyalandı!');
+        setTimeout(() => setCopied(false), 2000);
+      } catch (error) {
+        toast.error('URL kopyalanamadı!');
+      }
+    }
+  };
+
+  const presets = [
+    {
+      name: 'Düğün',
+      date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      message: 'Sevgili misafirlerimiz, düğünümüzde çektiğiniz fotoğrafları bu QR kod ile paylaşabilirsiniz. Anılarımızı birlikte oluşturalım! 💕'
+    },
+    {
+      name: 'Nişan',
+      date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      message: 'Nişan törenimizde çektiğiniz fotoğrafları bu QR kod ile paylaşın. Bu özel günü birlikte hatırlayalım! 💍'
+    },
+    {
+      name: 'Doğum Günü',
+      date: new Date().toISOString().split('T')[0],
+      message: 'Doğum günü partimde çektiğiniz fotoğrafları bu QR kod ile paylaşın. Bu güzel anları birlikte saklayalım! 🎂'
+    },
+    {
+      name: 'Mezuniyet',
+      date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      message: 'Mezuniyet törenimizde çektiğiniz fotoğrafları bu QR kod ile paylaşın. Bu önemli günü birlikte kutlayalım! 🎓'
+    }
   ];
 
-  const selectPreset = (preset) => {
-    setFormData(prev => ({
-      ...prev,
-      eventName: preset.name,
-      customMessage: preset.message
-    }));
-  };
+  console.log('QRGenerator render - loading:', loading, 'authLoading:', authLoading, 'user:', user);
+
+  if (loading) {
+    console.log('Loading durumunda render ediliyor...');
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{borderColor: '#6E473B'}}></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen relative">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#E1D4C2]/50 via-white/30 to-[#BEB5A9]/50"></div>
+      <div className="absolute top-0 left-0 w-full h-full">
+        <div className="absolute top-20 left-20 w-64 h-64 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(110, 71, 59, 0.08)'}}></div>
+        <div className="absolute top-40 right-32 w-48 h-48 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(167, 141, 120, 0.06)', animationDelay: '2s'}}></div>
+        <div className="absolute bottom-32 left-1/3 w-56 h-56 rounded-full blur-3xl animate-float" style={{backgroundColor: 'rgba(190, 181, 169, 0.05)', animationDelay: '4s'}}></div>
+      </div>
+
+      <div className="relative z-10">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
-          <div className="flex items-center justify-center mb-4">
-            <QrCode className="h-12 w-12 text-primary-600 mr-3" />
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              QR Kod Oluşturucu
-            </h1>
+        <section className="pt-20 pb-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-6"
+                style={{backgroundColor: '#E1D4C2', border: '1px solid #BEB5A9'}}
+              >
+                <QrCode className="h-8 w-8" style={{color: '#6E473B'}} />
+              </motion.div>
+              
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                <span className="text-gradient">QR Kod Oluştur</span>
+              </h1>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Etkinliğiniz için özel QR kod oluşturun ve misafirlerinizin fotoğraflarını kolayca toplayın
+              </p>
+            </motion.div>
           </div>
-                     <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-             Etkinliğiniz için özel QR kod oluşturun. {user?.is_admin ? 'Admin olarak sınırsız QR kod oluşturabilirsiniz.' : 'Admin panelinden yetki aldıktan sonra QR kod oluşturabilirsiniz.'} 
-             Misafirleriniz bu kodu okutarak Hatıra Köşesi'ne fotoğraf ve videolarını kolayca yükleyebilir.
-           </p>
-        </motion.div>
+        </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Form Section */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <div className="card">
-              <h3 className="text-xl font-semibold text-gray-900 mb-6">
-                Etkinlik Bilgileri
-              </h3>
-
-              {/* Preset Events */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Hızlı Seçim
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {presetEvents.map((preset, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectPreset(preset)}
-                      className="p-3 text-sm border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-all duration-200 text-left"
-                    >
-                      <div className="font-medium text-gray-900">{preset.name}</div>
-                      <div className="text-xs text-gray-500">{preset.message}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Heart className="inline h-4 w-4 mr-1" />
-                    Etkinlik Adı *
-                  </label>
-                  <input
-                    type="text"
-                    name="eventName"
-                    value={formData.eventName}
-                    onChange={handleInputChange}
-                    placeholder="Örn: Ahmet & Ayşe Düğünü"
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Calendar className="inline h-4 w-4 mr-1" />
-                    Etkinlik Tarihi
-                  </label>
-                  <input
-                    type="date"
-                    name="eventDate"
-                    value={formData.eventDate}
-                    onChange={handleInputChange}
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <MessageCircle className="inline h-4 w-4 mr-1" />
-                    Özel Mesaj
-                  </label>
-                  <textarea
-                    name="customMessage"
-                    value={formData.customMessage}
-                    onChange={handleInputChange}
-                    placeholder="Misafirlerinize özel mesajınız..."
-                    rows={3}
-                    className="input-field resize-none"
-                  />
-                </div>
-
-                <button
-                  onClick={generateQR}
-                  disabled={generating || !formData.eventName.trim()}
-                  className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                    generating || !formData.eventName.trim()
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'btn-primary'
-                  }`}
+        {/* Main Content */}
+        <section className="pb-16 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className={`grid grid-cols-1 gap-12 ${(!user?.has_created_qr || user?.is_admin) ? 'lg:grid-cols-2' : 'max-w-2xl mx-auto'}`}>
+              {/* Form Section - Sadece QR oluşturmamış kullanıcılar veya admin için göster */}
+              {(!user?.has_created_qr || user?.is_admin) && (
+                <motion.div
+                  initial={{ opacity: 0, x: -50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3, duration: 0.8 }}
+                  className="card"
                 >
-                  {generating ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      QR Kod Oluşturuluyor...
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center">
-                      <QrCode className="mr-2 h-5 w-5" />
-                      QR Kod Oluştur
-                    </div>
-                  )}
-                </button>
-              </div>
-
-                             {/* Info */}
-               <div className="mt-6 p-4 bg-green-50 rounded-lg">
-                 <div className="flex items-start">
-                   <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" />
-                   <div className="text-sm text-green-800">
-                     <p className="font-medium mb-1">Nasıl Kullanılır?</p>
-                     <p>QR kodu yazdırın veya dijital olarak paylaşın. Misafirleriniz kodu okutarak fotoğraf yükleme sayfasına ulaşabilir.</p>
-                   </div>
-                 </div>
-               </div>
-
-               {/* Admin Info */}
-               {user?.is_admin && (
-                 <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                   <div className="flex items-start">
-                     <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
-                     <div className="text-sm text-blue-800">
-                       <p className="font-medium mb-1">Admin Yetkisi</p>
-                       <p>Admin olarak sınırsız QR kod oluşturabilir ve tüm sistemi yönetebilirsiniz.</p>
-                     </div>
-                   </div>
-                 </div>
-               )}
-            </div>
-          </motion.div>
-
-          {/* QR Code Display */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-col items-center justify-center"
-          >
-            {qrData ? (
-              <div className="card text-center max-w-md w-full">
-                <h3 className="text-xl font-semibold text-gray-900 mb-6">
-                  QR Kodunuz Hazır!
-                </h3>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Etkinlik Bilgileri</h2>
                 
-                                 <div className="mb-6">
-                   <img
-                     src={qrData.qrCode}
-                     alt="QR Code"
-                     className="w-64 h-64 mx-auto border-4 border-gray-100 rounded-lg"
-                   />
-                 </div>
+                {/* Preset Buttons */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Hızlı Şablonlar</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {presets.map((preset, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handlePresetClick(preset)}
+                        className="btn-outline text-sm py-2 px-3"
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                 <div className="space-y-4">
-                   <div className="text-left">
-                     <h4 className="font-semibold text-gray-900 mb-2">Etkinlik Bilgileri:</h4>
-                     <div className="space-y-1 text-sm text-gray-600">
-                       <p><strong>Ad:</strong> {qrData.eventName}</p>
-                       <p><strong>QR ID:</strong> <span className="font-mono text-xs bg-purple-100 px-2 py-1 rounded border border-purple-200">{qrData.qrId || 'qr_' + qrData.eventName + '_' + Date.now()}</span></p>
-                       <p><strong>URL:</strong> {qrData.url}</p>
-                     </div>
-                   </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={downloadQR}
-                      className="btn-secondary flex-1 flex items-center justify-center"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      İndir
-                    </button>
-                    
-                    <button
-                      onClick={copyQRUrl}
-                      className={`btn-outline flex-1 flex items-center justify-center ${
-                        copied ? 'bg-green-600 text-white border-green-600' : ''
-                      }`}
-                    >
-                      {copied ? (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Kopyalandı
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="mr-2 h-4 w-4" />
-                          URL Kopyala
-                        </>
-                      )}
-                    </button>
+                <form className="space-y-6">
+                  {/* Event Name */}
+                  <div>
+                    <label htmlFor="eventName" className="block text-sm font-medium text-gray-700 mb-2">
+                      Etkinlik Adı *
+                    </label>
+                    <input
+                      type="text"
+                      id="eventName"
+                      name="eventName"
+                      value={formData.eventName}
+                      onChange={handleChange}
+                      required
+                      className="input-field"
+                      placeholder="Örn: Ahmet & Ayşe'nin Düğünü"
+                    />
                   </div>
 
-                  <button
-                    onClick={shareQR}
-                    className="w-full btn-outline flex items-center justify-center"
-                  >
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Paylaş
-                  </button>
-                </div>
+                  {/* Event Date */}
+                  <div>
+                    <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 mb-2">
+                      Etkinlik Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      id="eventDate"
+                      name="eventDate"
+                      value={formData.eventDate}
+                      onChange={handleChange}
+                      className="input-field"
+                    />
+                  </div>
 
-                                                                  <div className="mt-6 space-y-3">
-                   <div className="p-3 bg-blue-50 rounded-lg">
-                     <p className="text-xs text-blue-800">
-                       <strong>QR Kod URL:</strong><br />
-                       <span className="break-all">{qrData.url}</span>
-                     </p>
-                   </div>
-                   
-                   <div className="p-3 bg-green-50 rounded-lg">
-                     <p className="text-xs text-green-800">
-                       <strong>Galeri URL:</strong><br />
-                                               <span className="break-all">
-                          {qrData.galleryUrl || (qrData.url ? (() => {
-                            // QR URL'inden event name'i çıkar
-                            const eventName = qrData.eventName;
-                                                         const baseUrl = window.location.origin;
-                            return `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
-                          })() : '')}
-                        </span>
-                     </p>
-                     <button
-                       onClick={() => {
-                         if (qrData.galleryUrl) {
-                           window.open(qrData.galleryUrl, '_blank');
-                         } else if (qrData.url) {
-                                                        // Galeri linkini oluştur - sadece event name kullan
-                             const eventName = qrData.eventName;
-                                                                                                                 const baseUrl = window.location.origin;
-                           const galleryUrl = `${baseUrl}/gallery?eventName=${encodeURIComponent(eventName)}`;
-                           window.open(galleryUrl, '_blank');
-                         }
-                       }}
-                       className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors"
-                     >
-                       Galeriyi Aç
-                     </button>
-                   </div>
-                 </div>
-              </div>
-            ) : (
-              <div className="card text-center max-w-md w-full">
-                <div className="w-64 h-64 mx-auto bg-gray-100 rounded-lg flex items-center justify-center mb-6">
-                  <QrCode className="h-32 w-32 text-gray-300" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  QR Kod Bekliyor
-                </h3>
-                <p className="text-gray-600">
-                  Etkinlik bilgilerinizi girip QR kod oluşturun
-                </p>
-              </div>
-            )}
-          </motion.div>
-        </div>
+                  {/* Custom Message */}
+                  <div>
+                    <label htmlFor="customMessage" className="block text-sm font-medium text-gray-700 mb-2">
+                      Özel Mesaj
+                    </label>
+                    <textarea
+                      id="customMessage"
+                      name="customMessage"
+                      value={formData.customMessage}
+                      onChange={handleChange}
+                      rows={4}
+                      className="input-field resize-none"
+                      placeholder="Misafirlerinize özel bir mesaj yazın..."
+                    />
+                  </div>
+
+                  {/* Generate Button */}
+                  <motion.button
+                    type="button"
+                    onClick={handleGenerateQR}
+                    disabled={generating}
+                    className="btn-primary w-full flex items-center justify-center"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {generating ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        QR Kod Oluşturuluyor...
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <QrCode className="mr-2 h-5 w-5" />
+                        QR Kod Oluştur
+                      </div>
+                    )}
+                  </motion.button>
+                </form>
+                </motion.div>
+              )}
+
+              {/* QR Display Section */}
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+                className="card"
+              >
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  {user?.has_created_qr && !user?.is_admin ? 'QR Kodunuz' : 'QR Kod'}
+                </h2>
+                
+                {qrData ? (
+                  <div className="text-center space-y-6">
+                    {/* QR Code Image */}
+                    <div className="flex justify-center">
+                      <div className="p-4 bg-white rounded-xl shadow-sm" style={{border: '1px solid #BEB5A9'}}>
+                        <img
+                          src={qrData.qrCodeUrl}
+                          alt="QR Code"
+                          className="w-64 h-64"
+                          onError={(e) => {
+                            console.error('QR Image Error:', e);
+                            console.error('QR Code URL:', qrData.qrCodeUrl);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Event Details */}
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold text-gray-900">{qrData.eventName}</h3>
+                      {qrData.eventDate && (
+                        <p className="text-gray-600 flex items-center justify-center">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {new Date(qrData.eventDate).toLocaleDateString('tr-TR')}
+                        </p>
+                      )}
+                      {qrData.customMessage && (
+                        <p className="text-gray-600 text-sm italic">
+                          "{qrData.customMessage}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={handleDownload}
+                        className="btn-secondary flex items-center justify-center"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Sadece QR İndir
+                      </button>
+                      <button
+                        onClick={() => setShowTemplates(!showTemplates)}
+                        className="btn-primary flex items-center justify-center"
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Şablonlu İndir
+                      </button>
+                      <button
+                        onClick={handleCopyUrl}
+                        className="btn-outline flex items-center justify-center"
+                      >
+                        {copied ? (
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Copy className="mr-2 h-4 w-4" />
+                        )}
+                        {copied ? 'Kopyalandı!' : 'URL Kopyala'}
+                      </button>
+                      <button
+                        onClick={() => navigate(`/gallery?qr=${qrData.qrId}&eventName=${encodeURIComponent(qrData.eventName)}`)}
+                        className="btn-outline flex items-center justify-center"
+                      >
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Galeriyi Görüntüle
+                      </button>
+                    </div>
+
+                    {/* Template Selection */}
+                    {showTemplates && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-6 p-6 bg-white rounded-xl shadow-sm border border-gray-200"
+                      >
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+                          Şablon Seçin
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {templates.map((template) => (
+                            <motion.div
+                              key={template.id}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                selectedTemplate?.id === template.id
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => setSelectedTemplate(template)}
+                            >
+                              <div className="h-32 rounded-lg mb-3 overflow-hidden bg-gray-100 flex items-center justify-center">
+                                <img
+                                  src={template.image}
+                                  alt={template.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                                <div className="hidden w-full h-full items-center justify-center text-gray-500">
+                                  <div className="text-center">
+                                    <div className="text-2xl mb-2">🖼️</div>
+                                    <div className="text-sm">Şablon Yükleniyor...</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <h4 className="font-medium text-gray-900">{template.name}</h4>
+                              <p className="text-sm text-gray-600">{template.description}</p>
+                            </motion.div>
+                          ))}
+                        </div>
+                        {selectedTemplate && (
+                          <div className="mt-4 flex justify-center">
+                            <button
+                              onClick={() => handleDownloadWithTemplate(selectedTemplate)}
+                              className="btn-primary flex items-center"
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              {selectedTemplate.name} ile İndir
+                            </button>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-32 h-32 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{backgroundColor: '#E1D4C2', border: '1px solid #BEB5A9'}}>
+                      <QrCode className="h-16 w-16" style={{color: '#6E473B'}} />
+                    </div>
+                    <p className="text-gray-600">
+                      {user?.has_created_qr && !user?.is_admin 
+                        ? 'QR kodunuz yükleniyor...' 
+                        : 'QR kod oluşturmak için formu doldurun ve "QR Kod Oluştur" butonuna tıklayın.'
+                      }
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
 };
 
-export default QRGenerator; 
+export default QRGenerator;

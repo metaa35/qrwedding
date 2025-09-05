@@ -6,18 +6,73 @@ const supabase = require('../services/supabase');
 
 const router = express.Router();
 
+// QR kod doğrulama
+router.get('/validate/:qrId', async (req, res) => {
+  try {
+    const { qrId } = req.params;
+    console.log('QR validation request - qrId:', qrId);
+
+    if (!qrId) {
+      return res.status(400).json({
+        success: false,
+        message: 'QR ID gerekli!'
+      });
+    }
+
+    // QR kod bilgilerini veritabanından al
+    const { data: qrData, error: qrError } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('qr_id', qrId)
+      .eq('is_active', true)
+      .single();
+
+    console.log('QR data query result:', { qrData, qrError });
+
+    if (qrError || !qrData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Geçersiz QR kod!'
+      });
+    }
+
+    // Event bilgilerini hazırla
+    const eventData = {
+      name: qrData.event_name,
+      date: qrData.event_date,
+      message: qrData.custom_message,
+      qrId: qrData.qr_id
+    };
+
+    res.json({
+      success: true,
+      eventData: eventData
+    });
+
+  } catch (error) {
+    console.error('QR validation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR kod doğrulanırken bir hata oluştu!'
+    });
+  }
+});
+
 // QR kod oluştur
 router.post('/generate', authenticateToken, requireQrPermission, async (req, res) => {
   try {
     const { eventName, eventDate, customMessage } = req.body;
     const userId = req.user.id;
 
-    if (!eventName) {
+    // Event name kontrolü
+    if (!eventName || eventName.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Etkinlik adı gerekli!'
       });
     }
+    
+    const finalEventName = eventName;
 
     // Admin değilse yetki kontrolü yap
     if (!req.user.is_admin) {
@@ -30,36 +85,44 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
       }
     }
 
-    // Admin değilse QR sayısı kontrolü yap
+    // Admin değilse QR oluşturma kontrolü yap
     if (!req.user.is_admin) {
-      const { data: existingQR, error: checkError } = await supabase
-        .from('qr_codes')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      try {
+        // Kullanıcının has_created_qr durumunu kontrol et
+        const { data: currentUserData, error: userError } = await supabase
+          .from('users')
+          .select('has_created_qr')
+          .eq('id', userId)
+          .single();
 
-      if (checkError && checkError.code !== 'PGRST116') {
-        throw checkError;
-      }
+        if (userError) {
+          console.error('Kullanıcı bilgisi alma hatası:', userError);
+          throw userError;
+        }
 
-      if (existingQR) {
-        return res.status(400).json({
-          success: false,
-          message: 'Zaten bir QR kodunuz var! Her kullanıcı sadece 1 QR kod oluşturabilir.'
-        });
+        // Eğer kullanıcı daha önce QR oluşturmuşsa, hata ver
+        if (currentUserData && currentUserData.has_created_qr) {
+          return res.status(400).json({
+            success: false,
+            message: 'QR kod oluşturma hakkınızı kullandınız! Admin panelinden QR hakkınızı sıfırlatmanız gerekiyor.',
+            code: 'QR_ALREADY_CREATED'
+          });
+        }
+      } catch (error) {
+        console.error('QR kontrol hatası:', error);
+        throw error;
       }
     }
 
-    // Benzersiz QR ID oluştur
-    const qrId = `qr_${eventName.replace(/\s+/g, '_')}_${Date.now()}`;
+    // Benzersiz QR ID oluştur - sadece timestamp kullan
+    const qrId = `${Date.now()}`;
     
     // QR kod URL'i oluştur
-    const baseUrl = process.env.BASE_URL || 
-      (process.env.NODE_ENV === 'production' ? 'https://www.hatirakosesi.com' : 'http://localhost:3000');
-    const qrUrl = `${baseUrl}/upload?qr=${qrId}&eventName=${encodeURIComponent(eventName)}`;
+    const baseUrl = 'https://www.hatirakosesi.com';
+    const qrUrl = `${baseUrl}/upload?qr=${qrId}&eventName=${encodeURIComponent(finalEventName)}`;
     
     // Galeri URL'i oluştur - QR ID ile benzersiz
-    const galleryUrl = `${baseUrl}/gallery?qr=${qrId}&eventName=${encodeURIComponent(eventName)}`;
+    const galleryUrl = `${baseUrl}/gallery?qr=${qrId}&eventName=${encodeURIComponent(finalEventName)}`;
 
     // QR kod resmi oluştur
     const qrCodeDataURL = await QRCode.toDataURL(qrUrl, {
@@ -80,7 +143,7 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
       .insert([{
         qr_id: qrId,
         user_id: userId,
-        event_name: eventName,
+        event_name: finalEventName,
         event_date: formattedEventDate,
         custom_message: customMessage,
         url: qrUrl,
@@ -93,6 +156,27 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
 
     if (error) throw error;
 
+    // QR oluşturulduktan sonra kullanıcının has_created_qr durumunu güncelle
+    try {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          has_created_qr: true,
+          qr_created_at: new Date(),
+          updated_at: new Date()
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('QR durumu güncelleme hatası:', updateError);
+      } else {
+        console.log('QR oluşturma durumu güncellendi:', userId);
+      }
+    } catch (error) {
+      console.error('QR durumu güncelleme genel hatası:', error);
+      // QR oluşturuldu ama durum güncellenemedi, bu kritik değil
+    }
+
     res.json({
       success: true,
       message: 'QR kod başarıyla oluşturuldu!',
@@ -100,7 +184,7 @@ router.post('/generate', authenticateToken, requireQrPermission, async (req, res
       qrId: qrId, // QR ID'yi response'a ekle
       url: qrUrl, // QR ID ile birlikte tam URL
       galleryUrl: galleryUrl, // QR ID ile birlikte galeri URL
-      eventName: eventName,
+      eventName: finalEventName,
       eventDate: eventDate,
       customMessage: customMessage,
       generatedBy: req.user.username,
@@ -188,7 +272,7 @@ router.get('/verify/:qrId', async (req, res) => {
       success: true,
       message: 'QR kod doğrulandı!',
       qr: {
-        id: qrCode.id,
+        id: qrCode.qr_id, // QR ID'yi hem id hem qrId olarak set et
         qrId: qrCode.qr_id,
         eventName: qrCode.event_name,
         eventDate: qrCode.event_date,
@@ -241,7 +325,7 @@ router.get('/info/:qrId', async (req, res) => {
     res.json({
       success: true,
       qr: {
-        id: qrCode.id,
+        id: qrCode.qr_id, // QR ID'yi hem id hem qrId olarak set et
         qrId: qrCode.qr_id,
         eventName: qrCode.event_name,
         eventDate: qrCode.event_date,
@@ -340,31 +424,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// QR kod sil
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { error } = await supabase
-      .from('qr_codes')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      message: 'QR kod başarıyla silindi!'
-    });
-
-  } catch (error) {
-    console.error('QR kod silme hatası:', error);
-    res.status(500).json({
-      success: false,
-      message: 'QR kod silinemedi!',
-      error: error.message
-    });
-  }
-});
+// QR kod silme işlemi kaldırıldı - QR kodlar kalıcıdır
 
 module.exports = router; 

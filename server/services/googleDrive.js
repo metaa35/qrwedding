@@ -6,15 +6,22 @@ class GoogleDriveService {
   constructor() {
     this.drive = null;
     this.folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-    this.init();
+    // Constructor'da init çağırma - lazy initialization yapacağız
+  }
+
+  async ensureInitialized() {
+    if (!this.drive) {
+      await this.init();
+    }
   }
 
   async init() {
     try {
       let auth;
       
-      // Vercel'de environment variable olarak credentials
+      // Önce GOOGLE_CREDENTIALS_JSON'i dene
       if (process.env.GOOGLE_CREDENTIALS_JSON) {
+        console.log('🔑 Environment variable\'dan credentials okunuyor...');
         const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
         auth = new google.auth.GoogleAuth({
           credentials: credentials,
@@ -24,16 +31,39 @@ class GoogleDriveService {
             'https://www.googleapis.com/auth/drive.appdata'
           ]
         });
+      } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        // Dosya yolu olarak ayarlanmışsa, dosyayı oku
+        console.log('📁 Dosyadan credentials okunuyor:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
+        try {
+          const credentialsContent = fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8');
+          const credentials = JSON.parse(credentialsContent);
+          auth = new google.auth.GoogleAuth({
+            credentials: credentials,
+            scopes: [
+              'https://www.googleapis.com/auth/drive',
+              'https://www.googleapis.com/auth/drive.file',
+              'https://www.googleapis.com/auth/drive.appdata'
+            ]
+          });
+        } catch (fileError) {
+          console.log('❌ Dosya okunamadı, environment variable olarak denenecek...');
+          // Dosya yoksa, environment variable'ın kendisi JSON olabilir
+          try {
+            const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+            auth = new google.auth.GoogleAuth({
+              credentials: credentials,
+              scopes: [
+                'https://www.googleapis.com/auth/drive',
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/drive.appdata'
+              ]
+            });
+          } catch (jsonError) {
+            throw new Error('Google Drive credentials geçersiz format!');
+          }
+        }
       } else {
-        // Local development için dosyadan oku
-        auth = new google.auth.GoogleAuth({
-          keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || './credentials.json',
-          scopes: [
-            'https://www.googleapis.com/auth/drive',
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive.appdata'
-          ]
-        });
+        throw new Error('Google Drive credentials bulunamadı!');
       }
 
       this.drive = google.drive({ version: 'v3', auth });
@@ -55,8 +85,8 @@ class GoogleDriveService {
         await this.init();
       }
 
-             // QR ID varsa klasör adına ekle, yoksa sadece event name kullan
-       const folderName = qrId ? `${eventName}_${qrId}` : (eventName || 'Genel');
+      // QR ID varsa klasör adına ekle, yoksa sadece event name kullan
+      const folderName = qrId ? `${eventName}_${qrId}` : (eventName || 'Genel');
       console.log('📁 Klasör aranıyor/oluşturuluyor:', folderName);
       let targetFolderId = await this.findOrCreateFolder(folderName);
       console.log('✅ Hedef klasör ID:', targetFolderId);
@@ -98,49 +128,125 @@ class GoogleDriveService {
           console.log(`📤 Yükleme ilerlemesi: %${percentCompleted}`);
         }
       });
-      
-      console.log('✅ Dosya başarıyla yüklendi:', response.data.id);
-      console.log('📄 Yüklenen dosya bilgileri:', response.data);
 
-      // Dosyayı "Bağlantıya sahip olan herkes - görüntüleyen" olarak paylaş
+      console.log('✅ Dosya başarıyla yüklendi:', response.data);
+
+      // Dosyayı herkese açık hale getir
       try {
-        console.log('🔗 Dosya paylaşım ayarı yapılıyor...');
         await this.drive.permissions.create({
           fileId: response.data.id,
           requestBody: {
             role: 'reader',
             type: 'anyone'
           },
-          supportsAllDrives: true
+          supportsAllDrives: true,
+          supportsTeamDrives: true
         });
-        console.log('✅ Dosya paylaşım ayarı yapıldı:', response.data.id);
-        
-        // Dosyayı tekrar al ve güncellenmiş linkleri döndür
-        const updatedFile = await this.drive.files.get({
-          fileId: response.data.id,
-          fields: 'id, name, webViewLink, webContentLink, thumbnailLink',
-          supportsAllDrives: true
-        });
-        
-        // Güncellenmiş linkleri kullan
-        response.data.webViewLink = updatedFile.data.webViewLink;
-        response.data.webContentLink = updatedFile.data.webContentLink;
-        response.data.thumbnailLink = updatedFile.data.thumbnailLink;
-        
-      } catch (shareError) {
-        console.log('⚠️ Dosya paylaşım ayarı yapılamadı:', shareError.message);
+        console.log('✅ Dosya herkese açık hale getirildi');
+      } catch (permissionError) {
+        console.warn('⚠️ Dosya paylaşım ayarları yapılamadı:', permissionError.message);
       }
 
       return {
         fileId: response.data.id,
         fileName: response.data.name,
         webViewLink: response.data.webViewLink,
-        webContentLink: response.data.webContentLink,
-        description: response.data.description
+        webContentLink: response.data.webContentLink
       };
+
     } catch (error) {
-      console.error('Dosya yükleme hatası:', error);
-      throw new Error('Dosya Google Drive\'a yüklenemedi');
+      console.error('❌ Dosya yükleme hatası:', error);
+      throw error;
+    }
+  }
+
+  // Memory buffer'dan dosya yükleme (Vercel için)
+  async uploadFileFromBuffer(buffer, fileName, mimeType, guestName = '', eventName = '', message = '', qrId = '') {
+    try {
+      console.log('🚀 Buffer dosya yükleme başlatılıyor...');
+      console.log('📝 Parametreler:', { fileName, mimeType, guestName, eventName, message, qrId });
+      
+      // Drive bağlantısını kontrol et ve gerekirse başlat
+      await this.ensureInitialized();
+
+      // QR ID varsa klasör adına ekle, yoksa sadece event name kullan
+      const folderName = qrId ? `${eventName}_${qrId}` : (eventName || 'Genel');
+      console.log('📁 Klasör aranıyor/oluşturuluyor:', folderName);
+      let targetFolderId = await this.findOrCreateFolder(folderName);
+      console.log('✅ Hedef klasör ID:', targetFolderId);
+      
+      // Dosya adı zaten QR ID ile geliyor, misafir adını ekle
+      const displayName = guestName ? `${guestName}_${fileName}` : fileName;
+      console.log('📄 Dosya adı:', displayName);
+      
+      const descriptionText = `Misafir: ${guestName || 'Anonim'}\nEtkinlik: ${eventName || 'Özel Etkinlik'}\nMesaj: ${message || 'Mesaj yok'}`;
+      
+      const fileMetadata = {
+        name: displayName, // Misafir adı + QR ID + timestamp + original name
+        parents: [targetFolderId], // Event klasörüne yükle
+        description: descriptionText
+      };
+      
+      console.log('📋 Dosya metadata:', fileMetadata);
+
+      // Buffer'ı stream'e çevir
+      const { Readable } = require('stream');
+      const stream = new Readable();
+      stream.push(buffer);
+      stream.push(null);
+
+      const media = {
+        mimeType: mimeType,
+        body: stream // Stream kullan
+      };
+
+      console.log('📤 Drive\'a yükleme başlatılıyor...');
+      const response = await this.drive.files.create({
+        resource: fileMetadata,
+        media: media,
+        fields: 'id, name, webViewLink, webContentLink, description',
+        supportsAllDrives: true,
+        supportsTeamDrives: true
+      });
+
+      console.log('✅ Dosya başarıyla yüklendi:', response.data);
+
+      // Dosyayı herkese açık hale getir
+      try {
+        await this.drive.permissions.create({
+          fileId: response.data.id,
+          requestBody: {
+            role: 'reader',
+            type: 'anyone'
+          },
+          supportsAllDrives: true,
+          supportsTeamDrives: true
+        });
+        console.log('✅ Dosya herkese açık hale getirildi');
+      } catch (permissionError) {
+        console.warn('⚠️ Dosya paylaşım ayarları yapılamadı:', permissionError.message);
+      }
+
+      return {
+        fileId: response.data.id,
+        fileName: response.data.name,
+        webViewLink: response.data.webViewLink,
+        webContentLink: response.data.webContentLink
+      };
+
+    } catch (error) {
+      // Video dosyaları için özel hata mesajları
+      if (mimeType.startsWith('video/')) {
+        if (error.message.includes('quota')) {
+          throw new Error('Google Drive kotası dolu! Lütfen daha küçük bir video yükleyin.');
+        } else if (error.message.includes('timeout')) {
+          throw new Error('Video yükleme zaman aşımına uğradı! Lütfen daha küçük bir video deneyin.');
+        } else if (error.message.includes('invalid')) {
+          throw new Error('Video formatı desteklenmiyor! Lütfen MP4, MOV veya AVI formatında bir video yükleyin.');
+        }
+      }
+      
+      throw error;
     }
   }
 
@@ -148,30 +254,32 @@ class GoogleDriveService {
     try {
       console.log('🔍 Klasör arama/oluşturma başlatılıyor:', folderName);
       
-      if (!this.drive) {
-        console.log('❌ Drive bağlantısı yok, yeniden başlatılıyor...');
-        await this.init();
-      }
+      // Drive bağlantısını kontrol et ve gerekirse başlat
+      await this.ensureInitialized();
 
       console.log('📁 Ana klasör ID:', this.folderId);
 
-      // Önce klasörü ara
-      const searchQuery = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and '${this.folderId}' in parents and trashed=false`;
+      // Önce klasörü ara - daha geniş arama
+      const searchQuery = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
       console.log('🔍 Arama sorgusu:', searchQuery);
       
       const searchResponse = await this.drive.files.list({
         q: searchQuery,
-        fields: 'files(id, name)',
+        fields: 'files(id, name, parents)',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true
       });
 
       console.log('📋 Arama sonucu:', searchResponse.data);
 
-      // Eğer klasör varsa, ID'sini döndür
+      // Eğer klasör varsa ve ana klasörün altındaysa, ID'sini döndür
       if (searchResponse.data.files && searchResponse.data.files.length > 0) {
-        console.log(`✅ Klasör bulundu: ${folderName} (ID: ${searchResponse.data.files[0].id})`);
-        return searchResponse.data.files[0].id;
+        for (const file of searchResponse.data.files) {
+          if (file.parents && file.parents.includes(this.folderId)) {
+            console.log(`✅ Klasör bulundu: ${folderName} (ID: ${file.id})`);
+            return file.id;
+          }
+        }
       }
 
       // Klasör yoksa oluştur
@@ -336,10 +444,12 @@ class GoogleDriveService {
   async getFileContent(fileId) {
     try {
       if (!this.drive) {
-        throw new Error('Google Drive bağlantısı kurulmamış');
+        console.log('❌ Drive bağlantısı yok, başlatılıyor...');
+        await this.ensureInitialized();
       }
 
       console.log('📥 Dosya içeriği alınıyor:', fileId);
+      console.log('🔍 Drive instance:', !!this.drive);
 
       const response = await this.drive.files.get({
         fileId: fileId,
@@ -347,10 +457,15 @@ class GoogleDriveService {
         supportsAllDrives: true
       });
 
-      console.log('✅ Dosya stream alındı');
+      console.log('✅ Dosya stream alındı, boyut:', response.data?.length || 'unknown');
       return response.data;
     } catch (error) {
       console.error('❌ Dosya içeriği getirme hatası:', error.message);
+      console.error('❌ Hata detayı:', {
+        code: error.code,
+        status: error.status,
+        fileId: fileId
+      });
       throw error;
     }
   }

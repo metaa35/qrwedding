@@ -10,41 +10,61 @@ const supabase = require('../services/supabase');
 
 const router = express.Router();
 
-// Multer konfigürasyonu
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Multer konfigürasyonu - Vercel için memory storage kullan
 const upload = multer({ 
-  storage: storage,
+  storage: multer.memoryStorage(), // Dosyaları memory'de tut
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit
+    fileSize: 2 * 1024 * 1024 * 1024 // 2GB limit (video dosyaları için)
   },
   fileFilter: function (req, file, cb) {
-    const allowedTypes = /jpeg|jpg|png|gif|mp4|avi|mov|wmv|flv|webm/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = /jpeg|jpg|png|gif|mp4|avi|mov|wmv|flv|webm|wav|mp3|ogg/;
+    const allowedMimeTypes = /image\/|video\/|audio\//;
+    
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedMimeTypes.test(file.mimetype);
 
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Sadece resim ve video dosyaları yüklenebilir!'));
+      cb(new Error('Sadece resim, video ve ses dosyaları yüklenebilir!'));
     }
   }
 });
 
-// Tek dosya yükleme - Yetkili kullanıcılar kullanabilir
-router.post('/single', authenticateToken, requireUploadPermission, upload.single('file'), async (req, res) => {
+// Tek dosya yükleme - QR ID kontrolü ile
+router.post('/single', upload.single('file'), async (req, res) => {
+  const qrId = req.body.qrId;
+  
+  // QR ID kontrolü
+  if (!qrId) {
+    return res.status(400).json({
+      success: false,
+      message: 'QR ID gerekli!'
+    });
+  }
+
+  // QR kod doğrulama
+  try {
+    const { data: qrData, error: qrError } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('qr_id', qrId)
+      .eq('is_active', true)
+      .single();
+
+    if (qrError || !qrData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Geçersiz QR kod!'
+      });
+    }
+  } catch (error) {
+    console.error('QR validation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'QR kod doğrulanamadı!'
+    });
+  }
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -60,46 +80,47 @@ router.post('/single', authenticateToken, requireUploadPermission, upload.single
     console.log('📥 eventName:', JSON.stringify(eventName));
     console.log('📥 message:', JSON.stringify(message));
 
-    if (!eventName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Etkinlik adı gerekli!'
-      });
-    }
+    // Etkinlik adı artık zorunlu değil, varsayılan değer kullan
+    const finalEventName = eventName || 'Etkinlik';
 
-    // Google Drive'a yükle
-    const filePath = req.file.path;
     // QR ID varsa dosya adına ekle, yoksa sadece event name kullan
     const fileName = qrId 
       ? `${qrId}_${Date.now()}_${req.file.originalname}`
-      : `${eventName}_${Date.now()}_${req.file.originalname}`;
+      : `${finalEventName}_${Date.now()}_${req.file.originalname}`;
     
-         const uploadedFile = await googleDriveService.uploadFile(
-       filePath, 
-       fileName, 
-       req.file.mimetype, // Gerçek MIME type
-       uploaderName || 'Anonim',
-       eventName,
-       message,
-       qrId // QR ID'yi Google Drive servisine gönder
-     );
+    // Google Drive'a yükle - memory'den direkt
+    const uploadedFile = await googleDriveService.uploadFileFromBuffer(
+      req.file.buffer, // Memory'deki dosya buffer'ı
+      fileName, 
+      req.file.mimetype,
+      uploaderName || 'Anonim',
+      finalEventName,
+      message,
+      qrId
+    );
 
-         // Supabase'e kaydet - QR ID ile
-     const { data: uploadRecord, error: supabaseError } = await supabase
-       .from('uploads')
-       .insert([{
-         file_id: uploadedFile.fileId,
-         file_name: uploadedFile.fileName,
-         file_size: req.file.size,
-         mime_type: req.file.mimetype,
-         web_view_link: uploadedFile.webViewLink,
-         event_name: eventName,
-         qr_id: qrId || null, // QR ID'yi kaydet
-         uploader_name: uploaderName || 'Anonim',
-         message: message
-       }])
-       .select()
-       .single();
+    // Upload type belirleme
+    const uploadType = req.file.mimetype.startsWith('image/') ? 'photo' : 
+                      req.file.mimetype.startsWith('video/') ? 'video' : 
+                      req.file.mimetype.startsWith('audio/') ? 'audio' : 'file';
+
+    // Supabase'e kaydet - QR ID ile
+    const { data: uploadRecord, error: supabaseError } = await supabase
+      .from('uploads')
+      .insert([{
+        file_id: uploadedFile.fileId,
+        file_name: uploadedFile.fileName,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype,
+        web_view_link: uploadedFile.webViewLink,
+        event_name: finalEventName,
+        qr_id: qrId || null, // QR ID'yi kaydet
+        uploader_name: uploaderName || 'Anonim',
+        message: message,
+        upload_type: uploadType
+      }])
+      .select()
+      .single();
 
     if (supabaseError) {
       console.error('Supabase kayıt hatası:', supabaseError);
@@ -112,8 +133,7 @@ router.post('/single', authenticateToken, requireUploadPermission, upload.single
       throw supabaseError;
     }
 
-    // Local dosyayı sil
-    fs.unlinkSync(filePath);
+    // Memory storage kullandığımız için dosya silme işlemi gerekmez
 
     res.json({
       success: true,
@@ -125,7 +145,7 @@ router.post('/single', authenticateToken, requireUploadPermission, upload.single
         size: req.file.size,
         mimeType: req.file.mimetype,
         webViewLink: uploadedFile.webViewLink,
-        eventName: eventName,
+        eventName: finalEventName,
         uploaderName: uploaderName || 'Anonim',
         message: message,
         uploadedAt: uploadRecord.uploaded_at
@@ -133,23 +153,41 @@ router.post('/single', authenticateToken, requireUploadPermission, upload.single
     });
 
   } catch (error) {
-    console.error('Dosya yükleme hatası:', error);
-    
-    // Local dosyayı temizle
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Hata tipine göre özel mesaj
+    let errorMessage = 'Dosya yükleme başarısız!';
+    if (error.message.includes('File too large')) {
+      errorMessage = 'Dosya boyutu çok büyük! Maksimum 1GB yükleyebilirsiniz.';
+    } else if (error.message.includes('Invalid file type')) {
+      errorMessage = 'Desteklenmeyen dosya formatı! Sadece resim, video ve ses dosyaları yüklenebilir.';
+    } else if (error.message.includes('Google Drive')) {
+      errorMessage = 'Google Drive bağlantı hatası! Lütfen tekrar deneyin.';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Yükleme zaman aşımına uğradı! Lütfen tekrar deneyin.';
     }
     
     res.status(500).json({
       success: false,
-      message: 'Dosya yükleme başarısız!',
-      error: error.message
+      message: errorMessage
     });
   }
 });
 
-// Çoklu dosya yükleme
+// Çoklu dosya yükleme - QR ID varsa authentication gerekmez
 router.post('/multiple', upload.array('files', 10), async (req, res) => {
+  // QR ID varsa authentication kontrolü yapma
+  const qrId = req.body.qrId;
+  if (!qrId) {
+    // QR ID yoksa authentication gerekli
+    try {
+      await authenticateToken(req, res, () => {});
+      await requireUploadPermission(req, res, () => {});
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Yetkilendirme gerekli!'
+      });
+    }
+  }
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -160,33 +198,34 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
 
     const { eventName, uploaderName, message, qrId } = req.body;
 
-    if (!eventName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Etkinlik adı gerekli!'
-      });
-    }
+    // Etkinlik adı artık zorunlu değil, varsayılan değer kullan
+    const finalEventName = eventName || 'Etkinlik';
 
     const uploadedFiles = [];
     const errors = [];
 
     for (const file of req.files) {
       try {
-        const filePath = file.path;
         // QR ID varsa dosya adına ekle, yoksa sadece event name kullan
         const fileName = qrId 
           ? `${qrId}_${Date.now()}_${file.originalname}`
-          : `${eventName}_${Date.now()}_${file.originalname}`;
+          : `${finalEventName}_${Date.now()}_${file.originalname}`;
         
-                 const uploadedFile = await googleDriveService.uploadFile(
-           filePath, 
-           fileName, 
-           file.mimetype,
-           uploaderName || 'Anonim',
-           eventName,
-           message,
-           qrId // QR ID'yi Google Drive servisine gönder
-         );
+        // Google Drive'a yükle - memory'den direkt
+        const uploadedFile = await googleDriveService.uploadFileFromBuffer(
+          file.buffer, // Memory'deki dosya buffer'ı
+          fileName, 
+          file.mimetype,
+          uploaderName || 'Anonim',
+          finalEventName,
+          message,
+          qrId // QR ID'yi Google Drive servisine gönder
+        );
+
+        // Upload type belirleme
+        const uploadType = file.mimetype.startsWith('image/') ? 'photo' : 
+                          file.mimetype.startsWith('video/') ? 'video' : 
+                          file.mimetype.startsWith('audio/') ? 'audio' : 'file';
 
                  // Supabase'e kaydet - QR ID ile
          const { data: uploadRecord, error: supabaseError } = await supabase
@@ -197,10 +236,11 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
              file_size: file.size,
              mime_type: file.mimetype,
              web_view_link: uploadedFile.webViewLink,
-             event_name: eventName,
+             event_name: finalEventName,
              qr_id: qrId || null, // QR ID'yi kaydet
              uploader_name: uploaderName || 'Anonim',
-             message: message
+             message: message,
+             upload_type: uploadType
            }])
            .select()
            .single();
@@ -216,14 +256,13 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
           size: file.size,
           mimeType: file.mimetype,
           webViewLink: uploadedFile.webViewLink,
-          eventName: eventName,
+          eventName: finalEventName,
           uploaderName: uploaderName || 'Anonim',
           message: message,
           uploadedAt: uploadRecord.uploaded_at
         });
 
-        // Local dosyayı sil
-        fs.unlinkSync(filePath);
+        // Memory storage kullandığımız için dosya silme işlemi gerekmez
 
       } catch (error) {
         console.error(`Dosya yükleme hatası (${file.originalname}):`, error);
@@ -232,10 +271,7 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
           error: error.message
         });
         
-        // Local dosyayı temizle
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+        // Memory storage kullandığımız için dosya temizleme işlemi gerekmez
       }
     }
 
@@ -249,14 +285,7 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
   } catch (error) {
     console.error('Çoklu dosya yükleme hatası:', error);
     
-    // Tüm local dosyaları temizle
-    if (req.files) {
-      req.files.forEach(file => {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
-      });
-    }
+    // Memory storage kullandığımız için dosya temizleme işlemi gerekmez
     
     res.status(500).json({
       success: false,
@@ -266,23 +295,49 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
   }
 });
 
-// Dosyaları listele
-router.get('/files', authenticateToken, requireGalleryPermission, async (req, res) => {
+// Dosyaları listele - QR ID varsa authentication gerekmez
+router.get('/files', async (req, res) => {
+  const qrId = req.query.qrId;
+  
+  // QR ID kontrolü
+  if (!qrId) {
+    return res.status(400).json({
+      success: false,
+      message: 'QR ID gerekli!'
+    });
+  }
+
+  // QR kod doğrulama
   try {
-    const { eventName, qr, page = 1, limit = 20 } = req.query;
+    const { data: qrData, error: qrError } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('qr_id', qrId)
+      .eq('is_active', true)
+      .single();
+
+    if (qrError || !qrData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Geçersiz QR kod!'
+      });
+    }
+  } catch (error) {
+    console.error('QR validation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'QR kod doğrulanamadı!'
+    });
+  }
+  try {
+    const { page = 1, limit = 20 } = req.query;
     
+    // Sadece bu QR ID'ye ait dosyaları getir
     let query = supabase
       .from('uploads')
       .select('*')
+      .eq('qr_id', qrId)
       .order('uploaded_at', { ascending: false });
-
-         // QR ID varsa, sadece o QR koduna ait dosyaları getir
-     if (qr) {
-       query = query.eq('qr_id', qr);
-     } else if (eventName) {
-       // QR ID yoksa, event name'e göre getir (geriye uyumluluk)
-       query = query.eq('event_name', eventName);
-     }
 
     // Sayfalama
     const offset = (page - 1) * limit;
@@ -436,6 +491,192 @@ router.delete('/files/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Dosya silinemedi!',
+      error: error.message
+    });
+  }
+});
+
+// Mesaj yükleme - dosya olmadan sadece metin
+router.post('/message', async (req, res) => {
+  const { qrId, uploaderName, eventName, message } = req.body;
+  
+  // QR ID kontrolü
+  if (!qrId) {
+    return res.status(400).json({
+      success: false,
+      message: 'QR ID gerekli!'
+    });
+  }
+
+  // QR kod doğrulama
+  try {
+    const { data: qrData, error: qrError } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('qr_id', qrId)
+      .eq('is_active', true)
+      .single();
+
+    if (qrError || !qrData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz QR kod!'
+      });
+    }
+
+    // Mesajı Google Drive'a kaydet
+    const messageFileName = `${qrId}_message_${Date.now()}.txt`;
+    const messageBuffer = Buffer.from(message, 'utf8');
+    
+    const uploadedMessage = await googleDriveService.uploadFileFromBuffer(
+      messageBuffer,
+      messageFileName,
+      'text/plain',
+      uploaderName || 'Anonim',
+      eventName || qrData.event_name,
+      message,
+      qrId
+    );
+
+    // Mesaj veritabanına kaydet
+    const { data: messageData, error: messageError } = await supabase
+      .from('uploads')
+      .insert({
+        file_id: uploadedMessage.fileId,
+        file_name: uploadedMessage.fileName,
+        file_size: message.length,
+        mime_type: 'text/plain',
+        web_view_link: uploadedMessage.webViewLink,
+        event_name: eventName || qrData.event_name,
+        qr_id: qrId,
+        uploader_name: uploaderName,
+        message: message,
+        upload_type: 'message',
+        uploaded_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (messageError) {
+      console.error('Message upload error:', messageError);
+      // Google Drive'dan dosyayı sil
+      try {
+        await googleDriveService.deleteFile(uploadedMessage.fileId);
+      } catch (deleteError) {
+        console.error('Google Drive dosya silme hatası:', deleteError);
+      }
+      return res.status(500).json({
+        success: false,
+        message: 'Mesaj kaydedilemedi!',
+        error: messageError.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Mesaj başarıyla kaydedildi!',
+      data: messageData
+    });
+
+  } catch (error) {
+    console.error('Message upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Mesaj kaydedilemedi!',
+      error: error.message
+    });
+  }
+});
+
+// Video streaming endpoint - CSP uyumlu video oynatma için
+router.get('/stream/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    console.log('🎥 Video streaming başlatılıyor - fileId:', fileId);
+    
+    // Supabase'den dosya bilgilerini al
+    const { data: fileData, error: fileError } = await supabase
+      .from('uploads')
+      .select('*')
+      .eq('id', fileId)
+      .single();
+
+    console.log('📋 Supabase response:', { fileData, fileError });
+
+    if (fileError || !fileData) {
+      console.log('❌ Dosya bulunamadı:', fileError);
+      return res.status(404).json({
+        success: false,
+        message: 'Dosya bulunamadı!'
+      });
+    }
+
+    console.log('📁 Google Drive file_id:', fileData.file_id);
+    console.log('📄 MIME type:', fileData.mime_type);
+
+    // Google Drive'dan dosyayı al
+    const fileBuffer = await googleDriveService.getFileContent(fileData.file_id);
+    
+    // Video headers
+    res.setHeader('Content-Type', fileData.mime_type || 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    
+    // Video dosyasını stream et
+    res.send(fileBuffer);
+    
+  } catch (error) {
+    console.error('Video streaming error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      fileId: req.params.fileId
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Video oynatılamadı!',
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint - video streaming debug için
+router.get('/test-stream/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    console.log('🧪 Test streaming - fileId:', fileId);
+    
+    // Supabase'den dosya bilgilerini al
+    const { data: fileData, error: fileError } = await supabase
+      .from('uploads')
+      .select('*')
+      .eq('id', fileId)
+      .single();
+
+    if (fileError || !fileData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dosya bulunamadı!',
+        error: fileError
+      });
+    }
+
+    res.json({
+      success: true,
+      fileData: {
+        id: fileData.id,
+        file_id: fileData.file_id,
+        file_name: fileData.file_name,
+        mime_type: fileData.mime_type,
+        file_size: fileData.file_size
+      }
+    });
+    
+  } catch (error) {
+    console.error('Test streaming error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Test hatası!',
       error: error.message
     });
   }

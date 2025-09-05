@@ -8,7 +8,6 @@ class User {
     this.username = data.username;
     this.email = data.email;
     this.password_hash = data.password_hash;
-    this.company_name = data.company_name;
     this.drive_folder_id = data.drive_folder_id;
     
     // Yetki alanları
@@ -16,6 +15,10 @@ class User {
     this.can_create_qr = data.can_create_qr || false;
     this.can_upload_files = data.can_upload_files || false;
     this.can_access_gallery = data.can_access_gallery || false;
+    
+    // QR kod durumu
+    this.has_created_qr = data.has_created_qr || false;
+    this.qr_created_at = data.qr_created_at;
     
     // İletişim bilgileri
     this.phone = data.phone;
@@ -41,6 +44,12 @@ class User {
   toSafeObject() {
     const userObject = { ...this };
     delete userObject.password_hash;
+    
+    // Debug: toSafeObject metodunda kullanıcı bilgilerini konsola yazdır
+    console.log('User.toSafeObject - Original user object:', this);
+    console.log('User.toSafeObject - Safe user object:', userObject);
+    console.log('User.toSafeObject - is_admin value:', userObject.is_admin);
+    
     return userObject;
   }
 
@@ -51,7 +60,15 @@ class User {
   }
 
   canCreateQRCode() {
-    return this.hasPermission('can_create_qr');
+    // Admin ise her zaman QR oluşturabilir
+    if (this.is_admin) return true;
+    
+    // Normal kullanıcılar sadece bir kez QR oluşturabilir
+    return this.hasPermission('can_create_qr') && !this.has_created_qr;
+  }
+  
+  hasCreatedQR() {
+    return this.has_created_qr;
   }
 
   hasUploadPermission() {
@@ -69,12 +86,13 @@ class User {
         username: this.username,
         email: this.email,
         password_hash: this.password_hash,
-        company_name: this.company_name,
         drive_folder_id: this.drive_folder_id,
         is_admin: this.is_admin,
         can_create_qr: this.can_create_qr,
         can_upload_files: this.can_upload_files,
         can_access_gallery: this.can_access_gallery,
+        has_created_qr: this.has_created_qr,
+        qr_created_at: this.qr_created_at,
         phone: this.phone,
         website: this.website,
         is_active: this.is_active,
@@ -255,6 +273,8 @@ User.create = async (userData) => {
     userData.can_create_qr = userData.can_create_qr || false;
     userData.can_upload_files = userData.can_upload_files || false;
     userData.can_access_gallery = userData.can_access_gallery || false;
+    userData.has_created_qr = userData.has_created_qr || false;
+    userData.qr_created_at = userData.qr_created_at || null;
     userData.is_admin = userData.is_admin || false;
     userData.is_active = userData.is_active !== undefined ? userData.is_active : true;
     userData.is_verified = userData.is_verified || false;
